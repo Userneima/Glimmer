@@ -211,6 +211,8 @@ const translations: Record<string, string> = {
   'Ordered List': '有序列表',
   'Task List': '任务列表',
   'Quote': '引用',
+  'Indent': '缩进',
+  'Outdent': '撤回缩进',
   'Code Block': '代码块',
   'Add Link': '添加链接',
   'Add Image': '添加图片',

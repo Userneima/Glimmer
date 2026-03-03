@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { Underline } from '@tiptap/extension-underline';
@@ -39,8 +39,18 @@ export const Editor: React.FC<EditorProps> = ({
       },
       // Disabled because we import these extensions separately with custom config
       strike: false,
+      link: false, // Disable built-in link, we use custom config below
+      underline: false, // Disable built-in underline, we use custom config below
+      // Enable indentation
+      indent: {
+        indentOnTab: true,
+      },
     }),
-    Underline,
+    Underline.configure({
+      HTMLAttributes: {
+        class: 'underline',
+      },
+    }),
     Strike,
     Link.configure({
       openOnClick: false,
@@ -70,6 +80,8 @@ export const Editor: React.FC<EditorProps> = ({
     Color,
   ], []);
 
+  const editorContentRef = useRef<HTMLDivElement>(null);
+
   const editor = useEditor({
     extensions,
     content,
@@ -86,12 +98,42 @@ export const Editor: React.FC<EditorProps> = ({
           event.preventDefault();
           const { state, dispatch } = view;
           const { $from } = state.selection;
-          const indent = '　'; // 1个中文全角空格
-          const tr = state.tr.insertText(indent, $from.pos, $from.pos);
-          dispatch(tr);
+          
+          // Find the start position of the current paragraph/block node
+          let position = $from.start($from.depth);
+          
+          if (event.shiftKey) {
+            // Shift+Tab: Outdent (remove two spaces)
+            if (position < state.doc.nodeSize - 2) {
+              const text = state.doc.textBetween(position, position + 2);
+              if (text === '  ') {
+                const tr = state.tr.delete(position, position + 2);
+                dispatch(tr);
+              } else if (text === '\t') {
+                // Also handle tab characters for backward compatibility
+                const tr = state.tr.delete(position, position + 1);
+                dispatch(tr);
+              }
+            }
+          } else {
+            // Tab: Indent (add two spaces)
+            // Skip inserting spaces at the very beginning of the document
+            // unless there's already content after it
+            const isAtDocumentStart = position === 0;
+            const hasContentAfter = position < state.doc.nodeSize - 2;
+            
+            if (!isAtDocumentStart || (isAtDocumentStart && hasContentAfter)) {
+              const tr = state.tr.insertText('  ', position, position);
+              dispatch(tr);
+            }
+          }
           return true;
         }
         return false;
+      },
+      // Enable text selection on long press
+      handleDOMEvents: {
+        // Allow all default behavior for text selection
       },
     },
   });
@@ -114,11 +156,16 @@ export const Editor: React.FC<EditorProps> = ({
 
   return (
     /* 编辑器主容器 - 毛玻璃风 */
-    <div className="flex flex-col h-full" style={{ backgroundColor: 'rgba(255, 255, 255, 0.75)' }}>
+    <div className="flex flex-col h-full" style={{ backgroundColor: 'rgba(255, 255, 255, 0.75)' }} ref={editorContentRef}>
       {editable && <EditorToolbar editor={editor} onAnalyze={onAnalyze} />}
       {editable && <TextBubbleMenu editor={editor} />}
       <div className="flex-1 overflow-hidden flex">
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto" style={{ 
+          WebkitUserSelect: 'text',
+          userSelect: 'text',
+          touchAction: 'pan-x pan-y',
+          pointerEvents: 'auto'
+        }}>
           <EditorContent editor={editor} className="h-full" />
         </div>
         {contentRightPanel}

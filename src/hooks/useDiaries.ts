@@ -151,7 +151,7 @@ export const useDiaries = () => {
       startSync();
       void (async () => {
         try {
-          await cloud.insertDiary(userId, newDiary);
+          await cloud.upsertDiary(userId, newDiary);
           await refreshDiariesFromCloud(userId);
           finishSync();
           syncHistory.add({

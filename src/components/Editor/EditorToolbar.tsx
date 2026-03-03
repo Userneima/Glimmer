@@ -14,6 +14,8 @@ import {
   Undo,
   Redo,
   Zap,
+  Indent,
+  Outdent,
 } from 'lucide-react';
 
 import { t } from '../../i18n';
@@ -165,6 +167,58 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor, onAnalyze 
         title={t('Task List')}
       >
         <CheckSquare size={18} strokeWidth={1.75} />
+      </ToolbarButton>
+
+      <ToolbarButton
+        onClick={() => {
+          // Indent current paragraph: insert two spaces at the beginning of the current paragraph
+          const { state, dispatch } = editor.view;
+          const { $from } = state.selection;
+          
+          // Find the start position of the current paragraph/block node
+          let paragraphStart = $from.start($from.depth);
+          
+          // Skip inserting spaces at the very beginning of the document
+          // unless there's already content after it
+          const isAtDocumentStart = paragraphStart === 0;
+          const hasContentAfter = paragraphStart < state.doc.nodeSize - 2;
+          
+          if (!isAtDocumentStart || (isAtDocumentStart && hasContentAfter)) {
+            const tr = state.tr.insertText('  ', paragraphStart, paragraphStart);
+            dispatch(tr);
+          }
+        }}
+        title={t('Indent')}
+      >
+        <Indent size={18} strokeWidth={1.75} />
+      </ToolbarButton>
+
+      <ToolbarButton
+        onClick={() => {
+          // Outdent current paragraph: remove two spaces from the beginning of the current paragraph
+          const { state, dispatch } = editor.view;
+          const { $from } = state.selection;
+          
+          // Find the start position of the current paragraph/block node
+          let paragraphStart = $from.start($from.depth);
+          
+          // Check if there are spaces to remove
+          if (paragraphStart < state.doc.nodeSize - 2) {
+            const text = state.doc.textBetween(paragraphStart, paragraphStart + 2);
+            if (text === '  ') {
+              // Remove two spaces
+              const tr = state.tr.delete(paragraphStart, paragraphStart + 2);
+              dispatch(tr);
+            } else if (text === '\t') {
+              // Remove tab character for backward compatibility
+              const tr = state.tr.delete(paragraphStart, paragraphStart + 1);
+              dispatch(tr);
+            }
+          }
+        }}
+        title={t('Outdent')}
+      >
+        <Outdent size={18} strokeWidth={1.75} />
       </ToolbarButton>
 
       <ToolbarButton
