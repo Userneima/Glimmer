@@ -41,10 +41,6 @@ export const Editor: React.FC<EditorProps> = ({
       strike: false,
       link: false, // Disable built-in link, we use custom config below
       underline: false, // Disable built-in underline, we use custom config below
-      // Enable indentation
-      indent: {
-        indentOnTab: true,
-      },
     }),
     Underline.configure({
       HTMLAttributes: {
