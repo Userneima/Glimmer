@@ -1,4 +1,4 @@
-import type { Diary, Folder, Task, AnalysisResult } from '../types';
+import type { Diary, Folder, Task, AnalysisResult, Tag } from '../types';
 
 type Backup = {
   timestamp: number;
@@ -131,6 +131,7 @@ export const storage = {
         startDate: taskRecord.startDate || null,
         endDate: taskRecord.endDate || null,
         completedAt: taskRecord.completedAt || null,
+        tags: taskRecord.tags || [],
       } as Task;
     });
   },
@@ -157,6 +158,36 @@ export const storage = {
   deleteTask(id: string): void {
     const tasks = this.getTasks();
     this.saveTasks(tasks.filter(t => t.id !== id));
+  },
+
+  // Tags
+  getTags(): Tag[] {
+    const data = localStorage.getItem(getKey('tags'));
+    return data ? JSON.parse(data) : [];
+  },
+
+  saveTags(tags: Tag[]): void {
+    localStorage.setItem(getKey('tags'), JSON.stringify(tags));
+  },
+
+  addTag(tag: Tag): void {
+    const tags = this.getTags();
+    tags.push(tag);
+    this.saveTags(tags);
+  },
+
+  updateTag(id: string, updates: Partial<Tag>): void {
+    const tags = this.getTags();
+    const index = tags.findIndex(t => t.id === id);
+    if (index !== -1) {
+      tags[index] = { ...tags[index], ...updates };
+      this.saveTags(tags);
+    }
+  },
+
+  deleteTag(id: string): void {
+    const tags = this.getTags();
+    this.saveTags(tags.filter(t => t.id !== id));
   },
 
   // AI settings (store user's Gemini free API key and optional DeepSeek settings locally)
@@ -189,6 +220,7 @@ export const storage = {
     localStorage.removeItem(getKey(DIARIES_KEY));
     localStorage.removeItem(getKey(FOLDERS_KEY));
     localStorage.removeItem(getKey('tasks'));
+    localStorage.removeItem(getKey('tags'));
     localStorage.removeItem(getKey('analyses'));
     localStorage.removeItem(getKey(BACKUPS_KEY));
   },

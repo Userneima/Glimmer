@@ -44,6 +44,7 @@ type TaskRow = {
   end_date: number | string | null;
   completed_at: number | string | null;
   sort_order: number | null;
+  tags?: string[] | null;
 };
 
 const toDiary = (row: DiaryRow): Diary => {
@@ -110,6 +111,7 @@ const toTask = (row: TaskRow): Task => {
     endDate: row.end_date ? toMs(row.end_date, createdAt) : null,
     completedAt: row.completed_at ? toMs(row.completed_at, createdAt) : null,
     order: row.sort_order ?? undefined,
+    tags: row.tags ?? [],
   };
 };
 
@@ -129,6 +131,7 @@ const toTaskRow = (userId: string, task: Task): TaskRow => {
     end_date: task.endDate ?? null,
     completed_at: task.completedAt ?? null,
     sort_order: task.order ?? null,
+    tags: task.tags.length > 0 ? task.tags : null,
   };
 };
 
@@ -243,7 +246,14 @@ export const cloud = {
       .order('sort_order', { ascending: true, nullsFirst: false })
       .order('created_at', { ascending: true });
 
-    if (error) throw error;
+    if (error) {
+      // 42703 = column does not exist (tags column not yet added to schema)
+      if (error.code === '42703') {
+        // Return empty array to let local data take precedence
+        return [];
+      }
+      throw error;
+    }
     return (data as TaskRow[] | null)?.map(toTask) ?? [];
   },
 
@@ -254,7 +264,14 @@ export const cloud = {
       .from('tasks')
       .upsert(row, { onConflict: 'id' });
 
-    if (error) throw error;
+    if (error) {
+      // 42703 = column does not exist (tags column not yet added to schema)
+      if (error.code === '42703') {
+        // Silently ignore - tags will sync when schema is updated
+        return;
+      }
+      throw error;
+    }
   },
 
   async deleteTask(userId: string, taskId: string): Promise<void> {

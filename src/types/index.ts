@@ -41,6 +41,16 @@ export interface Task {
   endDate?: number | null;      // End date timestamp (for time-range tasks)
   completedAt?: number | null;  // Completion timestamp
   order?: number;               // Custom order for sorting
+  tags: string[];               // Tags associated with the task
+}
+
+export interface Tag {
+  id: string;
+  name: string;
+  color: string;
+  isFavorite: boolean;
+  createdAt: number;
+  usageCount: number;
 }
 
 export interface AnalysisResult {

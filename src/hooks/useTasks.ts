@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, useMemo } from 'react';
 import { storage } from '../utils/storage';
-import type { Task } from '../types';
+import type { Task, Tag } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 import { cloud } from '../utils/cloud';
 import { useAuth } from '../context/useAuth';
@@ -12,10 +12,16 @@ export function useTasks() {
   const userId = user?.id ?? null;
   const [tasks, setTasks] = useState<Task[]>(() => storage.getTasks());
   const [searchQuery, setSearchQuery] = useState('');
+  const [tags, setTags] = useState<Tag[]>(() => storage.getTags());
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
 
   useEffect(() => {
     storage.saveTasks(tasks);
   }, [tasks]);
+
+  useEffect(() => {
+    storage.saveTags(tags);
+  }, [tags]);
 
   useEffect(() => {
     let active = true;
@@ -25,8 +31,26 @@ export function useTasks() {
         if (userId) {
           const remote = await cloud.fetchTasks(userId);
           if (!active) return;
-          storage.saveTasks(remote);
-          setTasks(remote);
+          // Only use remote data if it's not empty, otherwise keep local data
+          if (remote && remote.length > 0) {
+            // Merge remote data with local tags to preserve tag assignments
+            const local = storage.getTasks();
+            const localTaskMap = new Map(local.map(t => [t.id, t]));
+            const mergedTasks = remote.map(remoteTask => {
+              const localTask = localTaskMap.get(remoteTask.id);
+              // If local task has tags, merge them into remote task
+              if (localTask && localTask.tags && localTask.tags.length > 0) {
+                return { ...remoteTask, tags: localTask.tags };
+              }
+              return remoteTask;
+            });
+            storage.saveTasks(mergedTasks);
+            setTasks(mergedTasks);
+          } else {
+            // Remote is empty, use local data
+            const local = storage.getTasks();
+            setTasks(local);
+          }
           return;
         }
 
@@ -149,6 +173,7 @@ export function useTasks() {
       endDate: opts?.endDate || null,
       completedAt: null,
       order: maxOrder + 1,
+      tags: opts?.tags || [],
     };
     setTasks(prev => [...prev, t]);
     syncTask(t);
@@ -230,6 +255,149 @@ export function useTasks() {
 
   const reload = useCallback(() => {
     setTasks(storage.getTasks());
+  }, []);
+
+  // Tag management functions
+  const addTag = useCallback((name: string, color: string) => {
+    // Check if tag already exists
+    const existingTag = tags.find(tag => tag.name.toLowerCase() === name.toLowerCase());
+    if (existingTag) {
+      showToast(t('Tag already exists'));
+      return existingTag;
+    }
+
+    const newTag: Tag = {
+      id: uuidv4(),
+      name,
+      color,
+      isFavorite: false,
+      createdAt: Date.now(),
+      usageCount: 0,
+    };
+
+    setTags(prev => [...prev, newTag]);
+    showToast(t('Tag created successfully'));
+    return newTag;
+  }, [tags]);
+
+  const updateTag = useCallback((id: string, updates: Partial<Tag>) => {
+    setTags(prev => prev.map(tag => 
+      tag.id === id ? { ...tag, ...updates } : tag
+    ));
+    showToast(t('Tag updated successfully'));
+  }, []);
+
+  const deleteTag = useCallback((id: string) => {
+    // Remove tag from all tasks
+    setTasks(prev => prev.map(task => ({
+      ...task,
+      tags: task.tags.filter(tagId => tagId !== id)
+    })));
+
+    // Delete the tag itself
+    setTags(prev => prev.filter(tag => tag.id !== id));
+    showToast(t('Tag deleted successfully'));
+  }, []);
+
+  const toggleTagFavorite = useCallback((id: string) => {
+    setTags(prev => prev.map(tag => 
+      tag.id === id ? { ...tag, isFavorite: !tag.isFavorite } : tag
+    ));
+  }, []);
+
+  // Task tag operations
+  const addTagToTask = useCallback((taskId: string, tagId: string) => {
+    setTasks(prev => prev.map(task => {
+      if (task.id === taskId && !task.tags.includes(tagId)) {
+        const updatedTask = { ...task, tags: [...task.tags, tagId] };
+        syncTask(updatedTask);
+        return updatedTask;
+      }
+      return task;
+    }));
+
+    // Update tag usage count
+    setTags(prev => prev.map(tag => 
+      tag.id === tagId ? { ...tag, usageCount: tag.usageCount + 1 } : tag
+    ));
+  }, [syncTask]);
+
+  const removeTagFromTask = useCallback((taskId: string, tagId: string) => {
+    setTasks(prev => prev.map(task => {
+      if (task.id === taskId && task.tags.includes(tagId)) {
+        const updatedTask = { ...task, tags: task.tags.filter(id => id !== tagId) };
+        syncTask(updatedTask);
+        return updatedTask;
+      }
+      return task;
+    }));
+
+    // Update tag usage count
+    setTags(prev => prev.map(tag => 
+      tag.id === tagId ? { ...tag, usageCount: Math.max(0, tag.usageCount - 1) } : tag
+    ));
+  }, [syncTask]);
+
+  const batchAddTagToTasks = useCallback((taskIds: string[], tagId: string) => {
+    const updatedTasks = tasks.filter(task => taskIds.includes(task.id)).map(task => {
+      if (!task.tags.includes(tagId)) {
+        return { ...task, tags: [...task.tags, tagId] };
+      }
+      return task;
+    });
+
+    setTasks(prev => prev.map(task => {
+      const updatedTask = updatedTasks.find(t => t.id === task.id);
+      return updatedTask || task;
+    }));
+
+    // Sync updated tasks
+    syncTasks(updatedTasks);
+
+    // Update tag usage count
+    const addedCount = updatedTasks.length;
+    setTags(prev => prev.map(tag => 
+      tag.id === tagId ? { ...tag, usageCount: tag.usageCount + addedCount } : tag
+    ));
+
+    showToast(t('Tag added to {count} tasks', { count: addedCount }));
+  }, [tasks, syncTasks]);
+
+  const batchRemoveTagFromTasks = useCallback((taskIds: string[], tagId: string) => {
+    const updatedTasks = tasks.filter(task => taskIds.includes(task.id)).map(task => {
+      if (task.tags.includes(tagId)) {
+        return { ...task, tags: task.tags.filter(id => id !== tagId) };
+      }
+      return task;
+    });
+
+    setTasks(prev => prev.map(task => {
+      const updatedTask = updatedTasks.find(t => t.id === task.id);
+      return updatedTask || task;
+    }));
+
+    // Sync updated tasks
+    syncTasks(updatedTasks);
+
+    // Update tag usage count
+    const removedCount = updatedTasks.length;
+    setTags(prev => prev.map(tag => 
+      tag.id === tagId ? { ...tag, usageCount: Math.max(0, tag.usageCount - removedCount) } : tag
+    ));
+
+    showToast(t('Tag removed from {count} tasks', { count: removedCount }));
+  }, [tasks, syncTasks]);
+
+  // Tag filtering
+  const filterTasksByTags = useCallback((taskList: Task[]) => {
+    if (selectedTags.length === 0) return taskList;
+    return taskList.filter(task => 
+      selectedTags.every(tagId => task.tags.includes(tagId))
+    );
+  }, [selectedTags]);
+
+  const clearTagFilters = useCallback(() => {
+    setSelectedTags([]);
   }, []);
 
   const moveTaskUp = useCallback((id: string) => {
@@ -360,6 +528,20 @@ export function useTasks() {
     getTasksForDateRange,
     moveTaskUp,
     moveTaskDown,
-    reload
+    reload,
+    // Tag related
+    tags,
+    selectedTags,
+    setSelectedTags,
+    addTag,
+    updateTag,
+    deleteTag,
+    toggleTagFavorite,
+    addTagToTask,
+    removeTagFromTask,
+    batchAddTagToTasks,
+    batchRemoveTagFromTasks,
+    filterTasksByTags,
+    clearTagFilters
   };
 }

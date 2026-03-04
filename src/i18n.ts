@@ -303,6 +303,31 @@ const translations: Record<string, string> = {
   'deepseek-reasoner (reasoning)': 'deepseek-reasoner（推理）',
   '添加到日记结尾': '添加到日记结尾',
   '应用标签到日记': '应用标签到日记',
+  
+  // Tag Management
+  'Tag Management': '标签管理',
+  'Add Tag': '添加标签',
+  'Add New Tag': '添加新标签',
+  'Tag Name': '标签名称',
+  'Tag Color': '标签颜色',
+  'Search tags...': '搜索标签...',
+  'Remove tag': '移除标签',
+  'Add new tag': '添加新标签',
+  'Filter by tags': '按标签筛选',
+  'Remove Tag': '移除标签',
+  'Clear Selection': '清除选择',
+  'Remove from favorites': '从收藏中移除',
+  'Add to favorites': '添加到收藏',
+  'Used in {count} tasks': '在 {count} 个任务中使用',
+  'Tag already exists': '标签已存在',
+  'Tag created successfully': '标签创建成功',
+  'Tag updated successfully': '标签更新成功',
+  'Tag deleted successfully': '标签删除成功',
+  'Tag added to {count} tasks': '已为 {count} 个任务添加标签',
+  'Tag removed from {count} tasks': '已从 {count} 个任务中移除标签',
+  'Update': '更新',
+  'Bulk Select': '批量选择',
+  'Bulk Select Mode': '批量选择模式',
 };
 
 export function t(key: string): string {

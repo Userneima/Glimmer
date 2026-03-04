@@ -99,6 +99,35 @@ input, textarea, select {
   transition: all 0.2s cubic-bezier(0.25, 0.1, 0.25, 1);
 }
 
+/* ============================================
+   任务列表 Checkbox 对齐修复
+   ============================================ */
+
+/* 父容器：强制弹性布局 + 垂直居中 */
+.task-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Checkbox：彻底归零 */
+.task-item input[type="checkbox"] {
+  margin: 0 !important;
+  padding: 0;
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: #0ea5e9;
+}
+
+/* 文字：统一行高，使用inline-flex代替flex */
+.task-text {
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+}
+
 /* TipTap Editor Styles - 治愈森系风 */
 .ProseMirror {
   outline: none;
@@ -237,13 +266,17 @@ input, textarea, select {
 
 .ProseMirror ul[data-type="taskList"] li {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 0.5rem;
 }
 
 .ProseMirror ul[data-type="taskList"] li input[type="checkbox"] {
-  margin-top: 0.25rem;
+  margin: 0;
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
   cursor: pointer;
+  accent-color: #0ea5e9;
 }
 
 .ProseMirror blockquote {
