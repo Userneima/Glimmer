@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Folder as FolderIcon, FolderPlus, Edit2, Trash2 } from 'lucide-react';
 import type { Folder } from '../../types';
 import { Button } from '../UI/Button';
@@ -89,7 +89,15 @@ export const FolderTree: React.FC<FolderTreeProps> = ({
 
 
 
-  const rootFolders = folders.filter(f => !f.parentId);
+  // Sort root folders by createdAt in descending order (latest first)
+  const rootFolders = useMemo(() => {
+    const root = folders.filter(f => !f.parentId);
+    return root.sort((a, b) => {
+      const createdAtDiff = b.createdAt - a.createdAt;
+      if (createdAtDiff !== 0) return createdAtDiff;
+      return b.id.localeCompare(a.id);
+    });
+  }, [folders]);
 
   return (
     <div className="h-full flex flex-col" style={{ backgroundColor: 'rgba(255, 255, 255, 0.75)' }}>

@@ -7,6 +7,7 @@ import { Modal } from '../UI/Modal';
 import { Button } from '../UI/Button';
 import { t } from '../../i18n';
 import { showToast } from '../../utils/toast';
+import { LongTermIdeaPanel } from '../LongTermIdea/LongTermIdeaPanel';
 
 interface DiaryListProps {
   diaries: Diary[];
@@ -19,6 +20,7 @@ interface DiaryListProps {
   onSearch: (query: string) => void;
   selectedFolderId: string | null;
   folders: DiaryFolder[];
+  onNavigateToDiary?: (diaryId: string, position?: { from: number; to: number }) => void;
 }
 
 export const DiaryList: React.FC<DiaryListProps> = ({
@@ -32,6 +34,7 @@ export const DiaryList: React.FC<DiaryListProps> = ({
   onSearch,
   selectedFolderId,
   folders,
+  onNavigateToDiary,
 }) => {
   const [sortMode, setSortMode] = useState<
     'updated-desc' | 'updated-asc' | 'created-desc' | 'created-asc' | 'title-asc' | 'title-desc'
@@ -134,6 +137,15 @@ export const DiaryList: React.FC<DiaryListProps> = ({
     setTargetFolderId(null);
   };
 
+  // Sort folders by createdAt in descending order (latest first)
+  const sortedFolders = useMemo(() => {
+    return [...folders].sort((a, b) => {
+      const createdAtDiff = b.createdAt - a.createdAt;
+      if (createdAtDiff !== 0) return createdAtDiff;
+      return b.id.localeCompare(a.id);
+    });
+  }, [folders]);
+
   const getPreviewText = (content: string): string => {
     const div = document.createElement('div');
     div.innerHTML = content;
@@ -218,6 +230,9 @@ export const DiaryList: React.FC<DiaryListProps> = ({
           </select>
         </div>
       </div>
+
+      {/* Long Term Idea Panel */}
+      <LongTermIdeaPanel onNavigateToDiary={onNavigateToDiary} />
 
       <div className="flex-1 overflow-y-auto p-2">
         {sortedDiaries.length === 0 ? (
@@ -350,7 +365,7 @@ export const DiaryList: React.FC<DiaryListProps> = ({
             onChange={(e) => setTargetFolderId(e.target.value || null)}
           >
             <option value="">{t('All Diaries')}</option>
-            {folders.map(folder => (
+            {sortedFolders.map(folder => (
               <option key={folder.id} value={folder.id}>
                 {folder.name}
               </option>

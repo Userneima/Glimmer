@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { Analytics } from "@vercel/analytics/react";
 import { useDiaries } from '../../hooks/useDiaries';
 import { useFolders } from '../../hooks/useFolders';
@@ -14,7 +14,7 @@ import { TagInput } from '../UI/TagInput';
 import { ExportModal } from '../UI/ExportModal';
 import { ImportModal } from '../UI/ImportModal';
 import { SettingsModal } from '../UI/SettingsModal';
-import { BookOpen, Tag as TagIcon, Folder as FolderIcon, Calendar as CalendarIcon, Settings, ListChecks, Lock, LockOpen, List, FileText, Menu, X, ChevronLeft, Upload, Download, Zap } from 'lucide-react';
+import { BookOpen, Tag as TagIcon, Folder as FolderIcon, Calendar as CalendarIcon, Settings, ListChecks, Lock, LockOpen, List, FileText, Menu, X, ChevronLeft, Upload, Download, Zap, Pin } from 'lucide-react';
 import { TaskList } from '../Sidebar/TaskList';
 import { AnalysisPanel } from '../Analysis/AnalysisPanel';
 import { ToastHost } from '../UI/ToastHost';
@@ -23,6 +23,7 @@ import { CloudSyncStatus } from '../UI/CloudSyncStatus';
 import { useAuth } from '../../context/useAuth';
 import { showToast, getErrorMessage } from '../../utils/toast';
 import { syncManager } from '../../utils/syncManager';
+import { ReturnToLongTermIdeasPanel } from '../LongTermIdea/ReturnToLongTermIdeasPanel';
 
 import { t } from '../../i18n';
 
@@ -44,7 +45,26 @@ export const AppLayout: React.FC = () => {
 
   const { folders, createFolder, updateFolder, deleteFolder, importFolders } = useFolders();
 
-  const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
+  // Get the latest folder based on createdAt or updatedAt (if available)
+  const latestFolderId = useMemo(() => {
+    if (!folders || folders.length === 0) return null;
+    // Sort folders by createdAt in descending order
+    const sortedFolders = [...folders].sort((a, b) => {
+      // Use createdAt as primary sort key
+      const createdAtDiff = b.createdAt - a.createdAt;
+      if (createdAtDiff !== 0) return createdAtDiff;
+      
+      // If createdAt is the same, use id as fallback (newer id typically means newer folder)
+      return b.id.localeCompare(a.id);
+    });
+    return sortedFolders[0]?.id || null;
+  }, [folders]);
+
+  // Initialize selectedFolderId to latest folder when creating new diary
+  const [selectedFolderId, setSelectedFolderId] = useState<string | null>(() => {
+    // Initial value will be updated when folders are loaded
+    return null;
+  });
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
@@ -68,10 +88,50 @@ export const AppLayout: React.FC = () => {
   const [isTocHovering, setIsTocHovering] = useState(false);
   const [hasTaskListModalOpen, setHasTaskListModalOpen] = useState(false);
   
+  // Long-term idea navigation
+  const [navigatingFromIdea, setNavigatingFromIdea] = useState(false);
+  const [highlightRange, setHighlightRange] = useState<{ from: number; to: number } | undefined>(undefined);
+  
+  // Auto-select latest folder when folders change
+  useEffect(() => {
+    if (folders && folders.length > 0 && latestFolderId) {
+      // Only update if currently not selected or no folder is selected
+      setSelectedFolderId(prev => {
+        // If no folder is selected or the previous selection is no longer valid, select the latest
+        if (!prev || !folders.some(f => f.id === prev)) {
+          return latestFolderId;
+        }
+        return prev;
+      });
+    } else if (folders && folders.length === 0) {
+      setSelectedFolderId(null);
+    }
+  }, [folders, latestFolderId]);
+  
   // 移动端相关状态
   const [isMobile, setIsMobile] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [currentView, setCurrentView] = useState<'editor' | 'diaryList'>('editor');
+
+  const handleReturnToLongTermIdeas = useCallback(() => {
+    setNavigatingFromIdea(false);
+    setHighlightRange(undefined);
+    setCurrentDiaryId(null); // Return to diary list
+  }, []);
+
+  const handleNavigateToDiary = useCallback((diaryId: string, position?: { from: number; to: number }) => {
+    setNavigatingFromIdea(true);
+    if (position) {
+      setHighlightRange(position);
+    }
+    setCurrentDiaryId(diaryId);
+    if (isMobile) {
+      setCurrentView('editor');
+    }
+    // 清除筛选状态，确保日记列表能正常显示
+    setSelectedFolderId(null);
+    setSearchQuery('');
+  }, [isMobile]);
 
   // 检测屏幕宽度变化
   useEffect(() => {
@@ -481,6 +541,7 @@ export const AppLayout: React.FC = () => {
               onSearch={searchDiaries}
               selectedFolderId={selectedFolderId}
               folders={folders}
+              onNavigateToDiary={handleNavigateToDiary}
             />
           </div>
 
@@ -532,10 +593,16 @@ export const AppLayout: React.FC = () => {
                   </div>
                 </div>
                 <div className="flex-1 overflow-hidden flex flex-col">
+                  {navigatingFromIdea && (
+                    <ReturnToLongTermIdeasPanel onReturn={handleReturnToLongTermIdeas} />
+                  )}
                   <Editor
                     content={diaryContent}
                     onChange={handleContentChange}
                     editable={true}
+                    diaryId={currentDiaryId}
+                    highlightRange={highlightRange}
+                    onReturnToLongTermIdeas={handleReturnToLongTermIdeas}
                     contentRightPanel={
                       showTableOfContents ? (
                         isTocPinned ? (

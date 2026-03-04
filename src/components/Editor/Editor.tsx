@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useCallback } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { Underline } from '@tiptap/extension-underline';
@@ -16,6 +16,7 @@ import { TextStyle } from '@tiptap/extension-text-style';
 import { Color } from '@tiptap/extension-color';
 import { EditorToolbar } from './EditorToolbar';
 import { TextBubbleMenu } from './TextBubbleMenu';
+import { useSyncToLongTermIdea } from '../../hooks/useSyncToLongTermIdea.tsx';
 
 interface EditorProps {
   content: string;
@@ -23,6 +24,9 @@ interface EditorProps {
   editable?: boolean;
   contentRightPanel?: React.ReactNode;
   onAnalyze?: () => void;
+  diaryId?: string;
+  highlightRange?: { from: number; to: number };
+  onReturnToLongTermIdeas?: () => void;
 }
 
 export const Editor: React.FC<EditorProps> = ({
@@ -31,7 +35,11 @@ export const Editor: React.FC<EditorProps> = ({
   editable = true,
   contentRightPanel,
   onAnalyze,
+  diaryId,
+  highlightRange,
+  onReturnToLongTermIdeas,
 }) => {
+  const { openSyncModal, SyncModal } = diaryId ? useSyncToLongTermIdea(diaryId) : { openSyncModal: () => {}, SyncModal: () => null };
   const extensions = useMemo(() => [
     StarterKit.configure({
       heading: {
@@ -75,8 +83,6 @@ export const Editor: React.FC<EditorProps> = ({
     TextStyle,
     Color,
   ], []);
-
-  const editorContentRef = useRef<HTMLDivElement>(null);
 
   const editor = useEditor({
     extensions,
@@ -134,6 +140,45 @@ export const Editor: React.FC<EditorProps> = ({
     },
   });
 
+  const editorContentRef = useRef<HTMLDivElement>(null);
+
+  // Highlight range effect
+  useEffect(() => {
+    if (editor && highlightRange) {
+      // Scroll to the position
+      const pos = editor.state.doc.resolve(highlightRange.from);
+      editor.commands.setTextSelection(highlightRange.from);
+      
+      // Add highlight mark to the range
+      editor.chain()
+        .focus()
+        .setTextSelection(highlightRange)
+        .setHighlight({ color: '#fef08a' }) // Yellow highlight
+        .run();
+      
+      // Scroll into view
+      setTimeout(() => {
+        const dom = editor.view.domAtPos(highlightRange.from);
+        if (dom.node && dom.node instanceof HTMLElement) {
+          dom.node.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 100);
+    }
+  }, [editor, highlightRange]);
+
+  const handleSyncToLongTermIdea = useCallback((fullContent: string, note?: string) => {
+    if (!editor) return;
+    const { from, to } = editor.state.selection;
+    const hasSelection = from !== to;
+    
+    if (hasSelection) {
+      const selectedContent = editor.state.doc.textBetween(from, to);
+      openSyncModal(selectedContent, { from, to });
+    } else {
+      openSyncModal(fullContent);
+    }
+  }, [editor, openSyncModal]);
+
   useEffect(() => {
     if (editor && content !== editor.getHTML()) {
       editor.commands.setContent(content);
@@ -153,8 +198,9 @@ export const Editor: React.FC<EditorProps> = ({
   return (
     /* 编辑器主容器 - 毛玻璃风 */
     <div className="flex flex-col h-full" style={{ backgroundColor: 'rgba(255, 255, 255, 0.75)' }} ref={editorContentRef}>
-      {editable && <EditorToolbar editor={editor} onAnalyze={onAnalyze} />}
+      {editable && <EditorToolbar editor={editor} onAnalyze={onAnalyze} onSyncToLongTermIdea={handleSyncToLongTermIdea} />}
       {editable && <TextBubbleMenu editor={editor} />}
+      <SyncModal />
       <div className="flex-1 overflow-hidden flex">
         <div className="flex-1 overflow-y-auto" style={{ 
           WebkitUserSelect: 'text',

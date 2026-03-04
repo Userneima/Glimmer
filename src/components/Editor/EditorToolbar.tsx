@@ -16,6 +16,7 @@ import {
   Zap,
   Indent,
   Outdent,
+  Pin,
 } from 'lucide-react';
 
 import { t } from '../../i18n';
@@ -23,6 +24,7 @@ import { t } from '../../i18n';
 interface EditorToolbarProps {
   editor: Editor;
   onAnalyze?: () => void;
+  onSyncToLongTermIdea?: (content: string, note?: string) => void;
 }
 
 type ToolbarButtonProps = {
@@ -59,7 +61,7 @@ const ToolbarButton: React.FC<ToolbarButtonProps> = ({ onClick, isActive, childr
   </button>
 );
 
-export const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor, onAnalyze }) => {
+export const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor, onAnalyze, onSyncToLongTermIdea }) => {
   const maxUsedHeading = useEditorState({
     editor,
     selector: ({ editor: currentEditor }) => {
@@ -249,6 +251,18 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor, onAnalyze 
           className="ml-auto"
         >
           <Zap size={18} strokeWidth={1.75} />
+        </ToolbarButton>
+      )}
+
+      {onSyncToLongTermIdea && (
+        <ToolbarButton
+          onClick={() => {
+            const content = editor.state.doc.textContent;
+            onSyncToLongTermIdea(content);
+          }}
+          title={t('Sync to Long Term Idea')}
+        >
+          <Pin size={18} strokeWidth={1.75} />
         </ToolbarButton>
       )}
 

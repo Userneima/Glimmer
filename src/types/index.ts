@@ -53,6 +53,37 @@ export interface Tag {
   usageCount: number;
 }
 
+export type LongTermIdeaProgress = 'not-started' | 'in-progress' | 'pending-review' | 'completed';
+
+export interface LongTermIdeaVersion {
+  timestamp: number;
+  content: string;
+  note?: string;
+  syncedFromOriginal?: boolean;
+}
+
+export interface LongTermIdea {
+  id: string;
+  title: string;
+  content: string;
+  originalDiaryId: string;
+  originalPosition?: {
+    from: number;  // 起始位置
+    to: number;    // 结束位置
+  };
+  progress: LongTermIdeaProgress;
+  note?: string;  // 同步备注
+  reminder?: {
+    type: 'periodic' | 'deadline';
+    value: string;  // 如 'every-friday-18:00' 或 '2026-03-10'
+  };
+  lastAccessedAt?: number;
+  lastEditedAt?: number;
+  createdAt: number;
+  versions: LongTermIdeaVersion[];
+  originalDeleted?: boolean;  // 标记原日记是否已删除
+}
+
 export interface AnalysisResult {
   id: string;
   diaryId?: string | null;

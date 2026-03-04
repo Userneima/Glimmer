@@ -190,6 +190,36 @@ export const storage = {
     this.saveTags(tags.filter(t => t.id !== id));
   },
 
+  // Long Term Ideas
+  getLongTermIdeas(): LongTermIdea[] {
+    const data = localStorage.getItem(getKey('long_term_ideas'));
+    return data ? JSON.parse(data) : [];
+  },
+
+  saveLongTermIdeas(ideas: LongTermIdea[]): void {
+    localStorage.setItem(getKey('long_term_ideas'), JSON.stringify(ideas));
+  },
+
+  addLongTermIdea(idea: LongTermIdea): void {
+    const ideas = this.getLongTermIdeas();
+    ideas.push(idea);
+    this.saveLongTermIdeas(ideas);
+  },
+
+  updateLongTermIdea(id: string, updates: Partial<LongTermIdea>): void {
+    const ideas = this.getLongTermIdeas();
+    const index = ideas.findIndex(i => i.id === id);
+    if (index !== -1) {
+      ideas[index] = { ...ideas[index], ...updates, lastEditedAt: Date.now() };
+      this.saveLongTermIdeas(ideas);
+    }
+  },
+
+  deleteLongTermIdea(id: string): void {
+    const ideas = this.getLongTermIdeas();
+    this.saveLongTermIdeas(ideas.filter(i => i.id !== id));
+  },
+
   // AI settings (store user's Gemini free API key and optional DeepSeek settings locally)
   getAiSettings(): { geminiApiKey?: string | null; deepseekKey?: string | null; deepseekBaseUrl?: string | null; deepseekModel?: string | null } {
     const data = localStorage.getItem(getKey('ai_settings'));

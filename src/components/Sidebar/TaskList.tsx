@@ -217,6 +217,21 @@ export const TaskList: React.FC<TaskListProps> = ({ onModalStateChange }) => {
     return `${start} - ${end}`;
   };
 
+  const formatCompletedDate = (timestamp: number | null | undefined) => {
+    if (!timestamp) return '';
+    const date = new Date(timestamp);
+    const now = new Date();
+    const isToday = date.toDateString() === now.toDateString();
+    
+    if (isToday) {
+      // 如果是今天，显示具体时间
+      return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+    } else {
+      // 否则显示日期
+      return date.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
+    }
+  };
+
   const getContrastTextColor = (backgroundColor: string): string => {
     // 简单的对比度计算，返回黑色或白色文字
     const hex = backgroundColor.replace('#', '');
@@ -528,8 +543,8 @@ export const TaskList: React.FC<TaskListProps> = ({ onModalStateChange }) => {
             filteredTasks.map(task => (
               <li key={task.id} className="p-3 rounded-xl border transition-colors duration-200" style={{ backgroundColor: 'rgba(255, 255, 255, 0.85)', borderColor: 'rgba(226, 232, 240, 0.6)' }}>
               <div className="flex items-center gap-2">
-                {/* 第一行：批量选择checkbox + 完成状态checkbox + 标题 + 图标 + 操作按钮 */}
-                <div className="task-item flex-1 min-w-0">
+                {/* 第一行：批量选择 checkbox + 完成状态 checkbox + 标题 + 图标 + 操作按钮 */}
+                <div className="task-item flex-1 min-w-0 flex items-center gap-2">
                   {bulkSelectMode && (
                     <input
                       type="checkbox"
@@ -541,13 +556,16 @@ export const TaskList: React.FC<TaskListProps> = ({ onModalStateChange }) => {
                           setSelectedTasks(prev => [...prev, task.id]);
                         }
                       }}
-                      className="mr-2"
+                      className="w-4 h-4 rounded border-2 border-purple-500 text-purple-600 focus:ring-purple-500 cursor-pointer flex-shrink-0"
+                      title={t('Select for bulk operation')}
                     />
                   )}
                   <input
                     type="checkbox"
                     checked={task.completed}
                     onChange={() => toggleComplete(task.id)}
+                    className="w-4 h-4 rounded border-2 border-gray-300 text-green-600 focus:ring-green-500 cursor-pointer flex-shrink-0"
+                    title={t('Mark as completed')}
                   />
                   <span className={`task-text text-sm font-medium ${task.completed ? 'line-through text-gray-400' : 'text-gray-800'}`}>
                     {task.title}
@@ -600,7 +618,7 @@ export const TaskList: React.FC<TaskListProps> = ({ onModalStateChange }) => {
                 </div>
               </div>
               {/* 第二行：备注和日期范围 */}
-              {(task.notes || (task.taskType === 'time-range' && task.startDate && task.endDate) || (task.tags && task.tags.length > 0)) && (
+              {(task.notes || (task.taskType === 'time-range' && task.startDate && task.endDate) || (task.tags && task.tags.length > 0) || (activeTab === 'completed' && task.completedAt)) && (
                 <div className="ml-6 mt-1">
                   {task.notes && (
                     <p className="text-xs text-gray-500 line-clamp-2">{task.notes}</p>
@@ -608,6 +626,12 @@ export const TaskList: React.FC<TaskListProps> = ({ onModalStateChange }) => {
                   {task.taskType === 'time-range' && task.startDate && task.endDate && (
                     <p className="text-xs text-orange-600">
                       {formatDateRange(task.startDate, task.endDate)}
+                    </p>
+                  )}
+                  {activeTab === 'completed' && task.completedAt && (
+                    <p className="text-xs text-green-600 flex items-center gap-1">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                      {t('Completed at')} {formatCompletedDate(task.completedAt)}
                     </p>
                   )}
                   {task.tags && task.tags.length > 0 && (

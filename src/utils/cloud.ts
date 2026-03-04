@@ -1,4 +1,4 @@
-import type { Diary, Folder, Task } from '../types';
+import type { Diary, Folder, Task, LongTermIdea } from '../types';
 import { requireSupabase } from './supabase';
 
 type DiaryRow = {
@@ -284,4 +284,103 @@ export const cloud = {
 
     if (error) throw error;
   },
+
+  // Long Term Ideas
+  async fetchLongTermIdeas(userId: string): Promise<LongTermIdea[]> {
+    const supabase = requireSupabase();
+    const { data, error } = await supabase
+      .from('long_term_ideas')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      if (error.code === '42703') {
+        return [];
+      }
+      throw error;
+    }
+    return (data as any[] | null)?.map(toLongTermIdea) ?? [];
+  },
+
+  async upsertLongTermIdea(userId: string, idea: LongTermIdea): Promise<void> {
+    const supabase = requireSupabase();
+    const row = toLongTermIdeaRow(userId, idea);
+    const { error } = await supabase
+      .from('long_term_ideas')
+      .upsert(row, { onConflict: 'id' });
+
+    if (error) {
+      if (error.code === '42703') {
+        return;
+      }
+      throw error;
+    }
+  },
+
+  async deleteLongTermIdea(userId: string, ideaId: string): Promise<void> {
+    const supabase = requireSupabase();
+    const { error } = await supabase
+      .from('long_term_ideas')
+      .delete()
+      .eq('id', ideaId)
+      .eq('user_id', userId);
+
+    if (error) throw error;
+  },
+};
+
+type LongTermIdeaRow = {
+  id: string;
+  user_id: string;
+  title: string;
+  content: string;
+  original_diary_id: string;
+  original_position: { from: number; to: number } | null;
+  progress: string;
+  note: string | null;
+  reminder: { type: string; value: string } | null;
+  last_accessed_at: number | string | null;
+  last_edited_at: number | string | null;
+  created_at: number | string;
+  versions: any[];
+  original_deleted: boolean;
+};
+
+const toLongTermIdea = (row: LongTermIdeaRow): LongTermIdea => {
+  const createdAt = toMs(row.created_at, Date.now());
+  return {
+    id: row.id,
+    title: row.title,
+    content: row.content,
+    originalDiaryId: row.original_diary_id,
+    originalPosition: row.original_position ?? undefined,
+    progress: row.progress as any,
+    note: row.note ?? undefined,
+    reminder: row.reminder ?? undefined,
+    lastAccessedAt: row.last_accessed_at ? toMs(row.last_accessed_at, createdAt) : undefined,
+    lastEditedAt: row.last_edited_at ? toMs(row.last_edited_at, createdAt) : undefined,
+    createdAt,
+    versions: row.versions ?? [],
+    originalDeleted: row.original_deleted ?? false,
+  };
+};
+
+const toLongTermIdeaRow = (userId: string, idea: LongTermIdea): LongTermIdeaRow => {
+  return {
+    id: idea.id,
+    user_id: userId,
+    title: idea.title,
+    content: idea.content,
+    original_diary_id: idea.originalDiaryId,
+    original_position: idea.originalPosition ?? null,
+    progress: idea.progress,
+    note: idea.note ?? null,
+    reminder: idea.reminder ?? null,
+    last_accessed_at: idea.lastAccessedAt ?? null,
+    last_edited_at: idea.lastEditedAt ?? null,
+    created_at: idea.createdAt,
+    versions: idea.versions,
+    original_deleted: idea.originalDeleted ?? false,
+  };
 };
