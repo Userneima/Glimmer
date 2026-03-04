@@ -1,4 +1,4 @@
-import type { Diary, Folder, Task, AnalysisResult, Tag } from '../types';
+import type { Diary, Folder, Task, AnalysisResult, Tag, LongTermIdea } from '../types';
 
 type Backup = {
   timestamp: number;

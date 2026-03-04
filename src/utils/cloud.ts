@@ -339,7 +339,7 @@ type LongTermIdeaRow = {
   original_position: { from: number; to: number } | null;
   progress: string;
   note: string | null;
-  reminder: { type: string; value: string } | null;
+  reminder: { type: 'periodic' | 'deadline'; value: string } | null;
   last_accessed_at: number | string | null;
   last_edited_at: number | string | null;
   created_at: number | string;

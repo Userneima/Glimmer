@@ -6,7 +6,7 @@ import { Plus, Trash2, Clock, Calendar as CalendarIcon, Search, ChevronUp, Chevr
 import { Modal } from '../UI/Modal';
 import { TagSelector } from '../UI/TagSelector';
 import { TagManager } from '../UI/TagManager';
-import type { Task, TaskType, Tag as TagType } from '../../types';
+import type { Task, TaskType } from '../../types';
 import type { ParsedPlanItem } from '../../utils/planParser';
 
 interface TaskListProps {
@@ -35,8 +35,6 @@ export const TaskList: React.FC<TaskListProps> = ({ onModalStateChange }) => {
     updateTag,
     deleteTag,
     toggleTagFavorite,
-    addTagToTask,
-    removeTagFromTask,
     batchAddTagToTasks,
     batchRemoveTagFromTasks,
     filterTasksByTags,
@@ -60,7 +58,6 @@ export const TaskList: React.FC<TaskListProps> = ({ onModalStateChange }) => {
   const [aiParseError, setAiParseError] = useState<string | null>(null);
   const [newTaskTags, setNewTaskTags] = useState<string[]>([]);
   const [showTagManager, setShowTagManager] = useState(false);
-  const [selectedFilterTags, setSelectedFilterTags] = useState<string[]>([]);
   const [showTagFilterDropdown, setShowTagFilterDropdown] = useState(false);
   const [tagFilterSearch, setTagFilterSearch] = useState('');
   const [selectedTasks, setSelectedTasks] = useState<string[]>([]);

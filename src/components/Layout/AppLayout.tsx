@@ -14,7 +14,7 @@ import { TagInput } from '../UI/TagInput';
 import { ExportModal } from '../UI/ExportModal';
 import { ImportModal } from '../UI/ImportModal';
 import { SettingsModal } from '../UI/SettingsModal';
-import { BookOpen, Tag as TagIcon, Folder as FolderIcon, Calendar as CalendarIcon, Settings, ListChecks, Lock, LockOpen, List, FileText, Menu, X, ChevronLeft, Upload, Download, Zap, Pin } from 'lucide-react';
+import { BookOpen, Tag as TagIcon, Folder as FolderIcon, Calendar as CalendarIcon, Settings, ListChecks, Lock, LockOpen, List, FileText, Menu, X, ChevronLeft, Upload, Download, Zap } from 'lucide-react';
 import { TaskList } from '../Sidebar/TaskList';
 import { AnalysisPanel } from '../Analysis/AnalysisPanel';
 import { ToastHost } from '../UI/ToastHost';
@@ -130,7 +130,6 @@ export const AppLayout: React.FC = () => {
     }
     // 清除筛选状态，确保日记列表能正常显示
     setSelectedFolderId(null);
-    setSearchQuery('');
   }, [isMobile]);
 
   // 检测屏幕宽度变化
@@ -600,9 +599,8 @@ export const AppLayout: React.FC = () => {
                     content={diaryContent}
                     onChange={handleContentChange}
                     editable={true}
-                    diaryId={currentDiaryId}
+                    diaryId={currentDiaryId || undefined}
                     highlightRange={highlightRange}
-                    onReturnToLongTermIdeas={handleReturnToLongTermIdeas}
                     contentRightPanel={
                       showTableOfContents ? (
                         isTocPinned ? (

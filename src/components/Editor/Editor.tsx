@@ -26,7 +26,6 @@ interface EditorProps {
   onAnalyze?: () => void;
   diaryId?: string;
   highlightRange?: { from: number; to: number };
-  onReturnToLongTermIdeas?: () => void;
 }
 
 export const Editor: React.FC<EditorProps> = ({
@@ -37,7 +36,6 @@ export const Editor: React.FC<EditorProps> = ({
   onAnalyze,
   diaryId,
   highlightRange,
-  onReturnToLongTermIdeas,
 }) => {
   const { openSyncModal, SyncModal } = diaryId ? useSyncToLongTermIdea(diaryId) : { openSyncModal: () => {}, SyncModal: () => null };
   const extensions = useMemo(() => [
@@ -146,7 +144,6 @@ export const Editor: React.FC<EditorProps> = ({
   useEffect(() => {
     if (editor && highlightRange) {
       // Scroll to the position
-      const pos = editor.state.doc.resolve(highlightRange.from);
       editor.commands.setTextSelection(highlightRange.from);
       
       // Add highlight mark to the range
@@ -166,7 +163,7 @@ export const Editor: React.FC<EditorProps> = ({
     }
   }, [editor, highlightRange]);
 
-  const handleSyncToLongTermIdea = useCallback((fullContent: string, note?: string) => {
+  const handleSyncToLongTermIdea = useCallback((fullContent: string) => {
     if (!editor) return;
     const { from, to } = editor.state.selection;
     const hasSelection = from !== to;

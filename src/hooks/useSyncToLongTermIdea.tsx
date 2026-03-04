@@ -12,7 +12,7 @@ export function useSyncToLongTermIdea(diaryId: string) {
     setIsModalOpen(true);
   }, []);
 
-  const handleConfirm = useCallback((note: string, syncFullText: boolean) => {
+  const handleConfirm = useCallback(() => {
     if (pendingContent) {
       const title = pendingContent.content.slice(0, 30) + (pendingContent.content.length > 30 ? '...' : '');
       addIdea(title, pendingContent.content, diaryId, pendingContent.position);
@@ -30,7 +30,7 @@ export function useSyncToLongTermIdea(diaryId: string) {
       <SyncToLongTermIdeaModal
         isOpen={isModalOpen}
         onClose={handleClose}
-        onConfirm={(note) => handleConfirm(note, true)}
+        onConfirm={handleConfirm}
         hasSelection={!!pendingContent?.position}
       />
     );

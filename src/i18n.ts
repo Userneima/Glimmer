@@ -358,12 +358,17 @@ const translations: Record<string, string> = {
   'Sync back to original': '同步回原日记',
   'Are you sure you want to delete this long-term idea?': '确定要删除这个长期想法吗？',
   'Viewing from Long-term Ideas': '从长期想法查看',
-  'Return to Long-term Ideas': '返回长期想法',
   'Confirm': '确认',
 };
 
-export function t(key: string): string {
-  return translations[key] ?? key;
+export function t(key: string, params?: Record<string, string | number>): string {
+  const translation = translations[key] ?? key;
+  if (params) {
+    return Object.entries(params).reduce((str, [paramKey, value]) => {
+      return str.replace(new RegExp(`\\{${paramKey}\\}`, 'g'), String(value));
+    }, translation);
+  }
+  return translation;
 }
 
 export default t;
