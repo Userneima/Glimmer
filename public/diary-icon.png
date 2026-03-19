@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!-- 背景圆形 -->
+  <circle cx="128" cy="128" r="120" fill="#6366f1"/>
+
+  <!-- 日记本外壳 -->
+  <rect x="70" y="60" width="116" height="136" rx="8" fill="#ffffff"/>
+
+  <!-- 书脊装订线 -->
+  <rect x="90" y="60" width="4" height="136" fill="#e0e7ff"/>
+  <circle cx="92" cy="80" r="3" fill="#c7d2fe"/>
+  <circle cx="92" cy="110" r="3" fill="#c7d2fe"/>
+  <circle cx="92" cy="140" r="3" fill="#c7d2fe"/>
+  <circle cx="92" cy="170" r="3" fill="#c7d2fe"/>
+
+  <!-- 日记内容线条 -->
+  <line x1="110" y1="90" x2="165" y2="90" stroke="#6366f1" stroke-width="3" stroke-linecap="round"/>
+  <line x1="110" y1="110" x2="165" y2="110" stroke="#a5b4fc" stroke-width="3" stroke-linecap="round"/>
+  <line x1="110" y1="130" x2="150" y2="130" stroke="#a5b4fc" stroke-width="3" stroke-linecap="round"/>
+
+  <!-- 笔的图标 -->
+  <g transform="translate(140, 150) rotate(-45)">
+    <rect x="0" y="0" width="8" height="30" rx="2" fill="#fbbf24"/>
+    <polygon points="0,30 8,30 4,38" fill="#f59e0b"/>
+    <rect x="0" y="-5" width="8" height="5" fill="#fef3c7"/>
+  </g>
+</svg>
