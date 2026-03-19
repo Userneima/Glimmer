@@ -28,3 +28,10 @@ dist-ssr
 *.sln
 *.sw?
 .claude/
+
+# Cache, build and coverage
+.cache
+.cache/
+coverage/
+build/
+.vite
