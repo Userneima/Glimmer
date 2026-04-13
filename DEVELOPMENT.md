@@ -1,15 +1,15 @@
-# 日记应用开发指南
+# Glimmer 开发指南
 
 ## 📁 项目位置
 ```
-C:\Users\lenovo\Desktop\diary-app
+/path/to/Glimmer
 ```
 
 ## 🚀 快速启动
 
 ### 启动开发服务器
 ```bash
-cd C:\Users\lenovo\Desktop\diary-app
+cd /path/to/Glimmer
 npm run dev
 ```
 访问：http://localhost:5173 (或其他可用端口)
@@ -30,7 +30,7 @@ npm run preview
 ## 📦 项目结构
 
 ```
-diary-app/
+Glimmer/
 ├── src/
 │   ├── components/
 │   │   ├── Editor/
@@ -309,7 +309,7 @@ console.log(JSON.parse(localStorage.getItem('folders')))
 ### 1. 重新打开项目
 ```bash
 # 打开终端（PowerShell或CMD）
-cd C:\Users\lenovo\Desktop\diary-app
+cd /path/to/Glimmer
 
 # 启动开发服务器
 npm run dev

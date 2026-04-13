@@ -1,5 +1,33 @@
-import type { Diary, Folder, Task, LongTermIdea } from '../types';
+import type { PostgrestError } from '@supabase/supabase-js';
+import { LONG_TERM_MASTER_ID, type Diary, type Folder, type Task, type LongTermIdea } from '../types';
 import { requireSupabase } from './supabase';
+
+/** Legacy long-term master diary id (non-UUID); must map before writing to uuid columns. */
+const LEGACY_LONG_TERM_DIARY_ID = 'long-term-master';
+
+function normalizeDiaryIdForCloud(id: string): string {
+  if (id === LEGACY_LONG_TERM_DIARY_ID) return LONG_TERM_MASTER_ID;
+  return id;
+}
+
+/** Loose UUID check (Postgres uuid text format). */
+const UUID_TEXT_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function isUuidText(value: string): boolean {
+  return UUID_TEXT_RE.test(value.trim());
+}
+
+/** PostgREST: ON CONFLICT target must match a unique index; composite PK needs user_id,id. */
+function shouldRetryDiaryUpsertWithCompositePk(error: PostgrestError): boolean {
+  const blob = `${error.message} ${error.details} ${error.hint}`.toLowerCase();
+  if (blob.includes('row-level security') || blob.includes('jwt')) return false;
+  return (
+    blob.includes('no unique or exclusion constraint') ||
+    blob.includes('there is no unique or exclusion constraint') ||
+    (blob.includes('on conflict') && blob.includes('constraint'))
+  );
+}
 
 type DiaryRow = {
   id: string;
@@ -61,16 +89,25 @@ const toDiary = (row: DiaryRow): Diary => {
 };
 
 const toDiaryRow = (userId: string, diary: Diary): DiaryRow => {
+  const now = Date.now();
+  const createdAt = Number.isFinite(diary.createdAt) ? Math.trunc(diary.createdAt) : now;
+  const updatedAt = Number.isFinite(diary.updatedAt) ? Math.trunc(diary.updatedAt) : createdAt;
+  const rawFolder = diary.folderId;
+  let folder_id: string | null = null;
+  if (rawFolder != null && String(rawFolder).trim() !== '') {
+    const f = String(rawFolder).trim();
+    folder_id = isUuidText(f) ? f : null;
+  }
+
   return {
-    id: diary.id,
+    id: normalizeDiaryIdForCloud(diary.id),
     user_id: userId,
-    title: diary.title,
-    content: diary.content,
-    folder_id: diary.folderId,
-    tags: diary.tags,
-    // Use numeric millisecond timestamps for bigint columns
-    created_at: diary.createdAt,
-    updated_at: diary.updatedAt ?? diary.createdAt,
+    title: diary.title ?? '',
+    content: diary.content ?? '',
+    folder_id,
+    tags: Array.isArray(diary.tags) ? diary.tags : [],
+    created_at: createdAt,
+    updated_at: updatedAt,
   };
 };
 
@@ -177,20 +214,28 @@ export const cloud = {
 
   async upsertDiary(userId: string, diary: Diary): Promise<void> {
     const supabase = requireSupabase();
+    const idForCloud = normalizeDiaryIdForCloud(diary.id);
+    if (!isUuidText(idForCloud)) {
+      console.warn('[cloud] Skip sync: diary id is not a valid UUID', diary.id);
+      return;
+    }
     const row = toDiaryRow(userId, diary);
-    const { error } = await supabase
-      .from('diaries')
-      .upsert(row, { onConflict: 'id' });
+    let { error } = await supabase.from('diaries').upsert(row, { onConflict: 'id' });
+
+    if (error && shouldRetryDiaryUpsertWithCompositePk(error)) {
+      ({ error } = await supabase.from('diaries').upsert(row, { onConflict: 'user_id,id' }));
+    }
 
     if (error) throw error;
   },
 
   async deleteDiary(userId: string, diaryId: string): Promise<void> {
     const supabase = requireSupabase();
+    const idForCloud = normalizeDiaryIdForCloud(diaryId);
     const { error } = await supabase
       .from('diaries')
       .delete()
-      .eq('id', diaryId)
+      .eq('id', idForCloud)
       .eq('user_id', userId);
 
     if (error) throw error;

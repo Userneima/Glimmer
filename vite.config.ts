@@ -14,8 +14,8 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       manifest: {
-        name: 'Diary App',
-        short_name: 'Diary',
+        name: 'Glimmer',
+        short_name: 'Glimmer',
         description: 'A simple local-first diary app',
         theme_color: '#ffffff',
         icons: [

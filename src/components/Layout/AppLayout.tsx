@@ -67,6 +67,7 @@ export const AppLayout: React.FC = () => {
   });
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [exportModalInitialType, setExportModalInitialType] = useState<'current' | 'all'>('all');
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [leftPanelView, setLeftPanelView] = useState<'folders' | 'tags' | 'calendar' | 'tasks'>('folders');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -113,6 +114,11 @@ export const AppLayout: React.FC = () => {
   const [isMobile, setIsMobile] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [currentView, setCurrentView] = useState<'editor' | 'diaryList'>('editor');
+
+  const openExportModal = useCallback((initialType: 'current' | 'all' = 'all') => {
+    setExportModalInitialType(initialType);
+    setIsExportModalOpen(true);
+  }, []);
 
   const handleReturnToLongTermIdeas = useCallback(() => {
     setNavigatingFromIdea(false);
@@ -287,7 +293,7 @@ export const AppLayout: React.FC = () => {
 
   return (
     <div className="h-screen">
-      <Analytics />
+      {import.meta.env.PROD ? <Analytics /> : null}
       {/* 桌面端布局 */}
       {!isMobile && (
         <div className="flex h-full">
@@ -592,6 +598,7 @@ export const AppLayout: React.FC = () => {
                   onTitleChange={handleTitleChange}
                   onTagsChange={(tags) => updateDiary(currentDiaryId!, { tags })}
                   onAnalyze={() => setIsAnalysisOpen(true)}
+                  onExport={() => openExportModal('current')}
                   AnalyzeIcon={Zap}
                 />
                 <div className="flex-1 overflow-hidden flex flex-col">
@@ -705,7 +712,7 @@ export const AppLayout: React.FC = () => {
                         {t('Import')}
                       </button>
                       <button
-                        onClick={() => setIsExportModalOpen(true)}
+                        onClick={() => openExportModal('all')}
                         className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-b from-accent-500 to-accent-600 text-white rounded-apple font-medium shadow-apple hover:shadow-apple-lg transition-all duration-200 active:scale-[0.97]"
                         title={t('Export all diaries')}
                         aria-label={t('Export all diaries')}
@@ -743,7 +750,7 @@ export const AppLayout: React.FC = () => {
                 <ChevronLeft size={20} />
               </button>
             )}
-            <h1 className="text-lg font-semibold text-primary-900">{t('Diary App')}</h1>
+            <h1 className="text-lg font-semibold text-primary-900">{t('Glimmer')}</h1>
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setIsLongTermIdeasOpen(true)}
@@ -777,6 +784,7 @@ export const AppLayout: React.FC = () => {
                       onTitleChange={handleTitleChange}
                       onTagsChange={(tags) => updateDiary(currentDiaryId!, { tags })}
                       onAnalyze={() => setIsAnalysisOpen(true)}
+                      onExport={() => openExportModal('current')}
                       AnalyzeIcon={Zap}
                     />
                     
@@ -827,7 +835,7 @@ export const AppLayout: React.FC = () => {
                         {t('Import')}
                       </button>
                       <button
-                        onClick={() => setIsExportModalOpen(true)}
+                        onClick={() => openExportModal('all')}
                         className="inline-flex items-center justify-center gap-2 px-5 py-3 bg-gradient-to-b from-accent-500 to-accent-600 text-white rounded-apple font-medium shadow-apple hover:shadow-apple-lg transition-all duration-200 active:scale-[0.97] w-full"
                       >
                         <Download size={18} strokeWidth={1.75} />
@@ -993,6 +1001,7 @@ export const AppLayout: React.FC = () => {
         onClose={() => setIsExportModalOpen(false)}
         diaries={diaries}
         currentDiary={currentDiary}
+        initialExportType={exportModalInitialType}
       />
 
       <ImportModal
@@ -1006,7 +1015,7 @@ export const AppLayout: React.FC = () => {
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         onImport={() => setIsImportModalOpen(true)}
-        onExport={() => setIsExportModalOpen(true)}
+        onExport={() => openExportModal('all')}
         onRetrySync={handleRetrySync}
       />
 

@@ -7,7 +7,7 @@ export type ToastPayload = {
   duration?: number;
 };
 
-const TOAST_EVENT = 'diary-app:toast';
+const TOAST_EVENT = 'glimmer:toast';
 
 const createToastId = () => `toast-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 

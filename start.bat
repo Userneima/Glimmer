@@ -1,6 +1,6 @@
 @echo off
 chcp 65001 >nul
-title 日记应用 - Diary App
+title Glimmer - 日记应用
 
 echo ========================================
 echo    启动日记应用开发服务器

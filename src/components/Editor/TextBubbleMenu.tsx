@@ -46,6 +46,11 @@ export const TextBubbleMenu: React.FC<TextBubbleMenuProps> = ({ editor }) => {
   const updateMenuState = useCallback(() => {
     const { selection } = editor.state;
 
+    if (editor.isActive('table')) {
+      setIsVisible(false);
+      return;
+    }
+
     // If an image node is active/selected, show image controls anchored to the image
     if (editor.isActive('image')) {
       try {

@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
+import { AllSelection, TextSelection } from 'prosemirror-state';
+import { CellSelection, TableMap, cellAround, findTable, isInTable, selectedRect } from 'prosemirror-tables';
 import StarterKit from '@tiptap/starter-kit';
 import { Underline } from '@tiptap/extension-underline';
 import { Strike } from '@tiptap/extension-strike';
@@ -16,6 +18,7 @@ import { TextStyle } from '@tiptap/extension-text-style';
 import { Color } from '@tiptap/extension-color';
 import { EditorToolbar } from './EditorToolbar';
 import { TextBubbleMenu } from './TextBubbleMenu';
+import { TableBubbleMenu } from './TableBubbleMenu';
 
 interface EditorProps {
   content: string;
@@ -35,6 +38,54 @@ export const Editor: React.FC<EditorProps> = ({
   onAnalyze,
   highlightRange,
 }) => {
+  const CustomTableCell = useMemo(
+    () =>
+      TableCell.extend({
+        addAttributes() {
+          return {
+            ...this.parent?.(),
+            textAlign: {
+              default: null,
+              parseHTML: (element) => element.style.textAlign || null,
+              renderHTML: (attributes) =>
+                attributes.textAlign ? { style: `text-align: ${attributes.textAlign};` } : {},
+            },
+            verticalAlign: {
+              default: null,
+              parseHTML: (element) => element.style.verticalAlign || null,
+              renderHTML: (attributes) =>
+                attributes.verticalAlign ? { style: `vertical-align: ${attributes.verticalAlign};` } : {},
+            },
+          };
+        },
+      }),
+    []
+  );
+
+  const CustomTableHeader = useMemo(
+    () =>
+      TableHeader.extend({
+        addAttributes() {
+          return {
+            ...this.parent?.(),
+            textAlign: {
+              default: null,
+              parseHTML: (element) => element.style.textAlign || null,
+              renderHTML: (attributes) =>
+                attributes.textAlign ? { style: `text-align: ${attributes.textAlign};` } : {},
+            },
+            verticalAlign: {
+              default: null,
+              parseHTML: (element) => element.style.verticalAlign || null,
+              renderHTML: (attributes) =>
+                attributes.verticalAlign ? { style: `vertical-align: ${attributes.verticalAlign};` } : {},
+            },
+          };
+        },
+      }),
+    []
+  );
+
   const extensions = useMemo(() => [
     StarterKit.configure({
       heading: {
@@ -74,10 +125,13 @@ export const Editor: React.FC<EditorProps> = ({
     }),
     Table.configure({
       resizable: true,
+      cellMinWidth: 36,
+      handleWidth: 6,
+      lastColumnResizable: true,
     }),
     TableRow,
-    TableCell,
-    TableHeader,
+    CustomTableCell,
+    CustomTableHeader,
     TaskList,
     TaskItem.configure({
       nested: true,
@@ -87,7 +141,7 @@ export const Editor: React.FC<EditorProps> = ({
     }),
     TextStyle,
     Color,
-  ], []);
+  ], [CustomTableCell, CustomTableHeader]);
 
   const editor = useEditor({
     extensions,
@@ -101,6 +155,59 @@ export const Editor: React.FC<EditorProps> = ({
         class: 'prose prose-sm sm:prose lg:prose-lg xl:prose-xl focus:outline-none max-w-none',
       },
       handleKeyDown: (view, event) => {
+        if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'a') {
+          const { state, dispatch } = view;
+          const { selection, doc } = state;
+
+          if (isInTable(state)) {
+            event.preventDefault();
+
+            if (selection instanceof CellSelection) {
+              const rect = selectedRect(state);
+              const isWholeTableSelected =
+                rect.left === 0 &&
+                rect.top === 0 &&
+                rect.right === rect.map.width &&
+                rect.bottom === rect.map.height;
+
+              if (isWholeTableSelected) {
+                dispatch(state.tr.setSelection(new AllSelection(doc)));
+                return true;
+              }
+
+              const firstCellPos = rect.tableStart + rect.map.map[0];
+              const lastCellPos = rect.tableStart + rect.map.map[rect.map.map.length - 1];
+              dispatch(state.tr.setSelection(CellSelection.create(doc, firstCellPos, lastCellPos)));
+              return true;
+            }
+
+            const table = findTable(selection.$from);
+            const cell = cellAround(selection.$from);
+
+            if (table && cell) {
+              const cellNode = cell.nodeAfter;
+
+              if (cellNode) {
+                const cellContentFrom = cell.pos + 1;
+                const cellContentTo = cell.pos + cellNode.nodeSize - 1;
+                const isWholeCellContentSelected =
+                  selection.from === cellContentFrom && selection.to === cellContentTo;
+
+                if (isWholeCellContentSelected) {
+                  const map = TableMap.get(table.node);
+                  const firstCellPos = table.start + map.map[0];
+                  const lastCellPos = table.start + map.map[map.map.length - 1];
+                  dispatch(state.tr.setSelection(CellSelection.create(doc, firstCellPos, lastCellPos)));
+                  return true;
+                }
+
+                dispatch(state.tr.setSelection(TextSelection.create(doc, cellContentFrom, cellContentTo)));
+                return true;
+              }
+            }
+          }
+        }
+
         if (event.key === 'Tab') {
           event.preventDefault();
           const { state, dispatch } = view;
@@ -191,6 +298,7 @@ export const Editor: React.FC<EditorProps> = ({
     <div className="flex flex-col h-full" style={{ backgroundColor: 'rgba(255, 255, 255, 0.75)' }} ref={editorContentRef}>
       {editable && <EditorToolbar editor={editor} onAnalyze={onAnalyze} />}
       {editable && <TextBubbleMenu editor={editor} />}
+      {editable && <TableBubbleMenu editor={editor} />}
       <div className="flex-1 overflow-hidden flex">
         <div className="flex-1 overflow-y-auto" style={{ 
           WebkitUserSelect: 'text',
