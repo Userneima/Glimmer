@@ -2,7 +2,7 @@
 
 一个功能强大、美观易用的Web端日记应用，支持富文本编辑、文件夹管理和本地存储。
 
-> 📖 **开发者指南**: 查看 [DEVELOPMENT.md](./DEVELOPMENT.md) 了解如何继续开发和优化此应用
+> 📖 **开发者指南**: 查看 [docs/DEVELOPMENT.md](./docs/DEVELOPMENT.md) 了解如何继续开发和优化此应用
 
 ## 功能特性
 

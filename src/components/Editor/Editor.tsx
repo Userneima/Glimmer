@@ -212,10 +212,32 @@ export const Editor: React.FC<EditorProps> = ({
           event.preventDefault();
           const { state, dispatch } = view;
           const { $from } = state.selection;
-          
+
+          if (editor) {
+            if (editor.isActive('taskItem')) {
+              const handled = event.shiftKey
+                ? editor.chain().focus().liftListItem('taskItem').run()
+                : editor.chain().focus().sinkListItem('taskItem').run();
+
+              if (handled) {
+                return true;
+              }
+            }
+
+            if (editor.isActive('bulletList') || editor.isActive('orderedList')) {
+              const handled = event.shiftKey
+                ? editor.chain().focus().liftListItem('listItem').run()
+                : editor.chain().focus().sinkListItem('listItem').run();
+
+              if (handled) {
+                return true;
+              }
+            }
+          }
+
           // Find the start position of the current paragraph/block node
-          let position = $from.start($from.depth);
-          
+          const position = $from.start($from.depth);
+
           if (event.shiftKey) {
             // Shift+Tab: Outdent (remove two spaces)
             if (position < state.doc.nodeSize - 2) {
