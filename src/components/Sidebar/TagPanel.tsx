@@ -5,6 +5,16 @@ import { Modal } from '../UI/Modal';
 import { Button } from '../UI/Button';
 import { Input } from '../UI/Input';
 import { t } from '../../i18n';
+import {
+  getDiaryTagStats,
+  normalizeDiaryTag,
+  suggestEventSpecificDiaryTags,
+  suggestDiaryTagMerges,
+  type DiaryTagDeleteSuggestion,
+  type DiaryTagMergeSuggestion,
+  type DiaryTagColors,
+} from '../../utils/diaryTags';
+import { storage } from '../../utils/storage';
 
 interface TagPanelProps {
   diaries: Diary[];
@@ -13,6 +23,7 @@ interface TagPanelProps {
   onClearTags: () => void;
   onRenameTag: (oldTag: string, newTag: string) => void;
   onMergeTags: (tags: string[], newTag: string) => void;
+  onApplyTagMergeSuggestions: (suggestions: DiaryTagMergeSuggestion[]) => void;
   onDeleteTag: (tag: string) => void;
 }
 
@@ -29,54 +40,50 @@ export const TagPanel: React.FC<TagPanelProps> = ({
   onClearTags,
   onRenameTag,
   onMergeTags,
+  onApplyTagMergeSuggestions,
   onDeleteTag,
 }) => {
   const [isRenameModalOpen, setIsRenameModalOpen] = useState(false);
-  const [isMergeModalOpen, setIsMergeModalOpen] = useState(false);
+  const [isCleanupModalOpen, setIsCleanupModalOpen] = useState(false);
   const [isColorModalOpen, setIsColorModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [editingTag, setEditingTag] = useState<string>('');
   const [newTagName, setNewTagName] = useState('');
   const [selectedForMerge, setSelectedForMerge] = useState<string[]>([]);
-  const [customColors, setCustomColors] = useState<Record<string, string>>({});
+  const [selectedCleanupTargets, setSelectedCleanupTargets] = useState<string[]>([]);
+  const [selectedEventTags, setSelectedEventTags] = useState<string[]>([]);
+  const [customColors, setCustomColors] = useState<DiaryTagColors>(() => storage.getDiaryTagColors());
   const [deletingTag, setDeletingTag] = useState<string>('');
-
-  const getDefaultTagColor = (tag: string) => {
-    const colors = [
-      'bg-blue-100 text-blue-700 border-blue-200',
-      'bg-green-100 text-green-700 border-green-200',
-      'bg-purple-100 text-purple-700 border-purple-200',
-      'bg-pink-100 text-pink-700 border-pink-200',
-      'bg-yellow-100 text-yellow-700 border-yellow-200',
-      'bg-indigo-100 text-indigo-700 border-indigo-200',
-      'bg-red-100 text-red-700 border-red-200',
-      'bg-orange-100 text-orange-700 border-orange-200',
-    ];
-    const index = tag.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-    return colors[index % colors.length];
-  };
 
   // 统计所有标签
   const tagStats: TagStats[] = React.useMemo(() => {
-    const tagMap = new Map<string, number>();
-    diaries.forEach(diary => {
-      diary.tags.forEach(tag => {
-        tagMap.set(tag, (tagMap.get(tag) || 0) + 1);
-      });
-    });
-
-    return Array.from(tagMap.entries())
-      .map(([name, count]) => ({
-        name,
-        count,
-        color: customColors[name] || getDefaultTagColor(name),
-      }))
-      .sort((a, b) => b.count - a.count);
+    return getDiaryTagStats(diaries, customColors);
   }, [diaries, customColors]);
 
+  const cleanupSuggestions = React.useMemo(() => {
+    return suggestDiaryTagMerges(tagStats);
+  }, [tagStats]);
+
+  const eventTagSuggestions: DiaryTagDeleteSuggestion[] = React.useMemo(() => {
+    return suggestEventSpecificDiaryTags(tagStats);
+  }, [tagStats]);
+
+  const persistColors = (nextColors: DiaryTagColors) => {
+    setCustomColors(nextColors);
+    storage.saveDiaryTagColors(nextColors);
+  };
+
   const handleRename = () => {
-    if (newTagName.trim() && editingTag) {
-      onRenameTag(editingTag, newTagName.trim().toLowerCase());
+    const normalizedNewName = normalizeDiaryTag(newTagName);
+    if (normalizedNewName && editingTag) {
+      const normalizedOldName = normalizeDiaryTag(editingTag);
+      onRenameTag(normalizedOldName, normalizedNewName);
+      if (normalizedOldName !== normalizedNewName && customColors[normalizedOldName]) {
+        const nextColors = { ...customColors };
+        nextColors[normalizedNewName] = nextColors[normalizedOldName];
+        delete nextColors[normalizedOldName];
+        persistColors(nextColors);
+      }
       setIsRenameModalOpen(false);
       setEditingTag('');
       setNewTagName('');
@@ -84,9 +91,20 @@ export const TagPanel: React.FC<TagPanelProps> = ({
   };
 
   const handleMerge = () => {
-    if (newTagName.trim() && selectedForMerge.length > 1) {
-      onMergeTags(selectedForMerge, newTagName.trim().toLowerCase());
-      setIsMergeModalOpen(false);
+    const normalizedNewName = normalizeDiaryTag(newTagName);
+    if (normalizedNewName && selectedForMerge.length > 1) {
+      const normalizedSources = selectedForMerge.map(normalizeDiaryTag).filter(Boolean);
+      onMergeTags(normalizedSources, normalizedNewName);
+      const nextColors = { ...customColors };
+      const inheritedColor = nextColors[normalizedNewName] || normalizedSources.map(tag => nextColors[tag]).find(Boolean);
+      normalizedSources.forEach(tag => {
+        delete nextColors[tag];
+      });
+      if (inheritedColor) {
+        nextColors[normalizedNewName] = inheritedColor;
+      }
+      persistColors(nextColors);
+      setIsCleanupModalOpen(false);
       setSelectedForMerge([]);
       setNewTagName('');
     }
@@ -98,8 +116,10 @@ export const TagPanel: React.FC<TagPanelProps> = ({
     setIsRenameModalOpen(true);
   };
 
-  const openMergeModal = () => {
-    setIsMergeModalOpen(true);
+  const openCleanupModal = () => {
+    setSelectedCleanupTargets(cleanupSuggestions.map((suggestion) => suggestion.targetTag));
+    setSelectedEventTags(eventTagSuggestions.map((suggestion) => suggestion.tag));
+    setIsCleanupModalOpen(true);
   };
 
   const openDeleteModal = (tag: string) => {
@@ -111,7 +131,13 @@ export const TagPanel: React.FC<TagPanelProps> = ({
     if (!deletingTag) {
       return;
     }
-    onDeleteTag(deletingTag);
+    const normalizedTag = normalizeDiaryTag(deletingTag);
+    onDeleteTag(normalizedTag);
+    if (customColors[normalizedTag]) {
+      const nextColors = { ...customColors };
+      delete nextColors[normalizedTag];
+      persistColors(nextColors);
+    }
     setDeletingTag('');
     setIsDeleteModalOpen(false);
   };
@@ -120,6 +146,52 @@ export const TagPanel: React.FC<TagPanelProps> = ({
     setSelectedForMerge(prev =>
       prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
     );
+  };
+
+  const toggleCleanupSuggestion = (targetTag: string) => {
+    setSelectedCleanupTargets(prev =>
+      prev.includes(targetTag) ? prev.filter(tag => tag !== targetTag) : [...prev, targetTag]
+    );
+  };
+
+  const toggleEventTagSuggestion = (tag: string) => {
+    setSelectedEventTags(prev =>
+      prev.includes(tag) ? prev.filter(item => item !== tag) : [...prev, tag]
+    );
+  };
+
+  const handleApplyCleanup = () => {
+    const selectedSuggestions = cleanupSuggestions.filter((suggestion) => (
+      selectedCleanupTargets.includes(suggestion.targetTag)
+    ));
+    const selectedMergeTags = new Set(selectedSuggestions.flatMap((suggestion) => (
+      suggestion.tags.map(normalizeDiaryTag)
+    )));
+    const normalizedEventTags = selectedEventTags
+      .map(normalizeDiaryTag)
+      .filter((tag) => tag && !selectedMergeTags.has(tag));
+    if (selectedSuggestions.length === 0 && normalizedEventTags.length === 0) return;
+
+    if (selectedSuggestions.length > 0) {
+      onApplyTagMergeSuggestions(selectedSuggestions);
+    }
+    normalizedEventTags.forEach(onDeleteTag);
+
+    const nextColors = { ...customColors };
+    selectedSuggestions.forEach(({ tags, targetTag }) => {
+      const inheritedColor = nextColors[targetTag] || tags.map(tag => nextColors[tag]).find(Boolean);
+      tags.forEach((tag) => {
+        if (tag !== targetTag) delete nextColors[tag];
+      });
+      if (inheritedColor) nextColors[targetTag] = inheritedColor;
+    });
+    normalizedEventTags.forEach((tag) => {
+      delete nextColors[tag];
+    });
+    persistColors(nextColors);
+    setIsCleanupModalOpen(false);
+    setSelectedCleanupTargets([]);
+    setSelectedEventTags([]);
   };
 
   const colorOptions = [
@@ -134,7 +206,10 @@ export const TagPanel: React.FC<TagPanelProps> = ({
   ];
 
   const handleColorChange = (tag: string, color: string) => {
-    setCustomColors(prev => ({ ...prev, [tag]: color }));
+    const normalizedTag = normalizeDiaryTag(tag);
+    if (normalizedTag) {
+      persistColors({ ...customColors, [normalizedTag]: color });
+    }
     setIsColorModalOpen(false);
     setEditingTag('');
   };
@@ -164,10 +239,10 @@ export const TagPanel: React.FC<TagPanelProps> = ({
             <Button
               variant="ghost"
               size="sm"
-              onClick={openMergeModal}
+              onClick={openCleanupModal}
               className="flex-1 text-xs"
             >
-              {t('Merge')}
+              {t('Clean up')}
             </Button>
           </div>
         )}
@@ -299,57 +374,127 @@ export const TagPanel: React.FC<TagPanelProps> = ({
         </div>
       </Modal>
 
-      {/* Merge Modal */}
+      {/* Cleanup Modal */}
       <Modal
-        isOpen={isMergeModalOpen}
+        isOpen={isCleanupModalOpen}
         onClose={() => {
-          setIsMergeModalOpen(false);
+          setIsCleanupModalOpen(false);
+          setSelectedCleanupTargets([]);
+          setSelectedEventTags([]);
           setSelectedForMerge([]);
           setNewTagName('');
         }}
-        title={t('Merge Tags')}
+        title={t('Organize Tags')}
       >
-        <div className="mb-4">
-          <p className="text-sm text-gray-600 mb-3">
-            {t('Select tags to merge (minimum 2):')}
-          </p>
-          <div className="space-y-2 max-h-48 overflow-y-auto">
-            {tagStats.map(({ name, color }) => (
-              <label
-                key={name}
-                className={`flex items-center gap-2 p-2 rounded cursor-pointer ${
-                  selectedForMerge.includes(name) ? 'bg-blue-50' : 'hover:bg-gray-50'
-                }`}
+        <div className="space-y-5">
+          <section>
+            <h3 className="text-sm font-semibold text-gray-800">{t('Similar tags')}</h3>
+            {cleanupSuggestions.length === 0 ? (
+              <p className="mt-2 text-sm text-gray-500">{t('No similar tags found')}</p>
+            ) : (
+              <div className="mt-2 space-y-2 max-h-40 overflow-y-auto">
+                {cleanupSuggestions.map((suggestion) => (
+                  <label
+                    key={suggestion.targetTag}
+                    className="flex items-start gap-3 rounded-xl border border-gray-200 bg-white/80 p-3"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedCleanupTargets.includes(suggestion.targetTag)}
+                      onChange={() => toggleCleanupSuggestion(suggestion.targetTag)}
+                      className="mt-1 rounded"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-medium text-gray-800">
+                        {suggestion.tags.join(' / ')} → {suggestion.targetTag}
+                      </div>
+                      <div className="mt-1 text-xs text-gray-500">
+                        {t('Suggested merge target')}
+                      </div>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            )}
+          </section>
+
+          <section>
+            <h3 className="text-sm font-semibold text-gray-800">{t('Event-only tags')}</h3>
+            {eventTagSuggestions.length === 0 ? (
+              <p className="mt-2 text-sm text-gray-500">{t('No event-only tags found')}</p>
+            ) : (
+              <div className="mt-2 space-y-2 max-h-40 overflow-y-auto">
+                {eventTagSuggestions.map((suggestion) => (
+                  <label
+                    key={suggestion.tag}
+                    className="flex items-start gap-3 rounded-xl border border-red-100 bg-red-50/60 p-3"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedEventTags.includes(suggestion.tag)}
+                      onChange={() => toggleEventTagSuggestion(suggestion.tag)}
+                      className="mt-1 rounded"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-medium text-gray-800">{suggestion.tag}</div>
+                      <div className="mt-1 text-xs text-gray-500">{suggestion.reason}</div>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            )}
+          </section>
+
+          <section>
+            <h3 className="text-sm font-semibold text-gray-800">{t('Manual merge')}</h3>
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {tagStats.map(({ name, color }) => (
+                <label
+                  key={name}
+                  className={`flex items-center gap-2 p-2 rounded cursor-pointer ${
+                    selectedForMerge.includes(name) ? 'bg-blue-50' : 'hover:bg-gray-50'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedForMerge.includes(name)}
+                    onChange={() => toggleMergeSelection(name)}
+                    className="rounded"
+                  />
+                  <span className={`px-2 py-1 rounded text-sm ${color}`}>{name}</span>
+                </label>
+              ))}
+            </div>
+            <div className="mt-3 flex gap-2">
+              <Input
+                value={newTagName}
+                onChange={(e) => setNewTagName(e.target.value)}
+                placeholder={t('New merged tag name')}
+                onKeyPress={(e) => e.key === 'Enter' && handleMerge()}
+              />
+              <Button
+                onClick={handleMerge}
+                disabled={selectedForMerge.length < 2 || !newTagName.trim()}
               >
-                <input
-                  type="checkbox"
-                  checked={selectedForMerge.includes(name)}
-                  onChange={() => toggleMergeSelection(name)}
-                  className="rounded"
-                />
-                <span className={`px-2 py-1 rounded text-sm ${color}`}>{name}</span>
-              </label>
-            ))}
-          </div>
+                {t('Merge')}
+              </Button>
+            </div>
+          </section>
         </div>
-        <Input
-          value={newTagName}
-          onChange={(e) => setNewTagName(e.target.value)}
-          placeholder={t('New merged tag name')}
-          onKeyPress={(e) => e.key === 'Enter' && handleMerge()}
-        />
         <div className="flex gap-2 mt-4">
           <Button
-            onClick={handleMerge}
-            disabled={selectedForMerge.length < 2 || !newTagName.trim()}
+            onClick={handleApplyCleanup}
+            disabled={selectedCleanupTargets.length === 0 && selectedEventTags.length === 0}
             className="flex-1"
           >
-            {t('Merge')} ({selectedForMerge.length})
+            {t('Apply cleanup')} ({selectedCleanupTargets.length + selectedEventTags.length})
           </Button>
           <Button
             variant="secondary"
             onClick={() => {
-              setIsMergeModalOpen(false);
+              setIsCleanupModalOpen(false);
+              setSelectedCleanupTargets([]);
+              setSelectedEventTags([]);
               setSelectedForMerge([]);
               setNewTagName('');
             }}

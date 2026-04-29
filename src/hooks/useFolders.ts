@@ -20,8 +20,20 @@ export const useFolders = () => {
         if (userId) {
           const remote = await cloud.fetchFolders(userId);
           if (!active) return;
-          storage.saveFolders(remote);
-          setFolders(remote);
+          const local = storage.getFolders();
+          if (remote.length === 0) {
+            setFolders(local);
+            if (local.length > 0) {
+              void Promise.all(local.map((folder) => cloud.upsertFolder(userId, folder))).catch(() => {});
+            }
+            return;
+          }
+
+          const map = new Map<string, Folder>(local.map((folder) => [folder.id, folder]));
+          remote.forEach((folder) => map.set(folder.id, { ...map.get(folder.id), ...folder }));
+          const merged = Array.from(map.values()).sort((a, b) => b.createdAt - a.createdAt);
+          storage.saveFolders(merged);
+          setFolders(merged);
           return;
         }
 
@@ -128,4 +140,3 @@ export const useFolders = () => {
     importFolders,
   };
 };
-

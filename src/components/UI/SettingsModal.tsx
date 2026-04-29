@@ -90,17 +90,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             <div className="space-y-2">
               <h3 className="text-sm font-semibold text-slate-700">{t('Cloud Sync')}</h3>
               <button
-                  onClick={onRetrySync}
-                  className="flex items-center gap-4 p-3 rounded-lg hover:bg-primary-50 transition-colors w-full"
-                >
-                  <div className="p-2 rounded-lg bg-blue-50 text-blue-600 flex-shrink-0">
-                    <RefreshCw size={20} />
-                  </div>
-                  <div className="flex-1 flex flex-col justify-center">
-                    <h4 className="font-medium text-slate-800 mb-1">{t('Manual sync')}</h4>
-                    <p className="text-sm text-slate-500">{t('Sync data with cloud storage')}</p>
-                  </div>
-                </button>
+                onClick={onRetrySync}
+                className="flex items-center gap-4 p-3 rounded-lg hover:bg-primary-50 transition-colors w-full"
+              >
+                <div className="p-2 rounded-lg bg-blue-50 text-blue-600 flex-shrink-0">
+                  <RefreshCw size={20} />
+                </div>
+                <div className="flex-1 flex flex-col justify-center">
+                  <h4 className="font-medium text-slate-800 mb-1">{t('Manual sync')}</h4>
+                  <p className="text-sm text-slate-500">{t('Sync data with cloud storage')}</p>
+                </div>
+              </button>
             </div>
           </div>
         )}

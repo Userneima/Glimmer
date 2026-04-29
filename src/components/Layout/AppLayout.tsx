@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { Analytics } from "@vercel/analytics/react";
 import { useDiaries } from '../../hooks/useDiaries';
 import { useFolders } from '../../hooks/useFolders';
@@ -24,6 +24,16 @@ import { showToast, getErrorMessage } from '../../utils/toast';
 import { syncManager } from '../../utils/syncManager';
 import { ReturnToLongTermIdeasPanel } from '../LongTermIdea/ReturnToLongTermIdeasPanel';
 import { LongTermIdeasDrawer } from '../LongTermIdea/LongTermIdeasDrawer';
+import { TEMPLATE_DIARY_ID } from '../../types';
+import {
+  deleteDiaryTag,
+  mergeDiaryTags,
+  normalizeDiaryTag,
+  normalizeDiaryTags,
+  renameDiaryTag,
+  type DiaryTagMergeSuggestion,
+} from '../../utils/diaryTags';
+import { getLocalBackupSignature, shouldRunDailyLocalBackup, writeDesktopLocalBackup } from '../../utils/localBackup';
 
 import { t } from '../../i18n';
 
@@ -88,6 +98,7 @@ export const AppLayout: React.FC = () => {
   });
   const [isTocHovering, setIsTocHovering] = useState(false);
   const [hasTaskListModalOpen, setHasTaskListModalOpen] = useState(false);
+  const lastMajorBackupSignatureRef = useRef<string | null>(null);
   
   // Long-term idea navigation
   const [navigatingFromIdea, setNavigatingFromIdea] = useState(false);
@@ -109,6 +120,53 @@ export const AppLayout: React.FC = () => {
       setSelectedFolderId(null);
     }
   }, [folders, latestFolderId]);
+
+  const runDailyLocalBackup = useCallback(async () => {
+    try {
+      if (!shouldRunDailyLocalBackup()) {
+        return;
+      }
+
+      const result = await writeDesktopLocalBackup(user?.id ?? null, 'daily');
+      if (result) {
+        console.info('[local-backup] Saved daily Glimmer backup:', result.path);
+      }
+    } catch (err) {
+      console.warn('[local-backup] Failed to save daily Glimmer backup', err);
+    }
+  }, [user?.id]);
+
+  const runMajorLocalBackup = useCallback(async () => {
+    try {
+      const signature = getLocalBackupSignature();
+      if (signature === lastMajorBackupSignatureRef.current) {
+        return;
+      }
+
+      const result = await writeDesktopLocalBackup(user?.id ?? null, 'major-change');
+      if (result) {
+        lastMajorBackupSignatureRef.current = signature;
+        console.info('[local-backup] Saved major-change Glimmer backup:', result.path);
+      }
+    } catch (err) {
+      console.warn('[local-backup] Failed to save major-change Glimmer backup', err);
+    }
+  }, [user?.id]);
+
+  useEffect(() => {
+    const startupTimer = window.setTimeout(() => {
+      void runDailyLocalBackup();
+    }, 15 * 1000);
+
+    const intervalTimer = window.setInterval(() => {
+      void runDailyLocalBackup();
+    }, 60 * 60 * 1000);
+
+    return () => {
+      window.clearTimeout(startupTimer);
+      window.clearInterval(intervalTimer);
+    };
+  }, [runDailyLocalBackup]);
   
   // 移动端相关状态
   const [isMobile, setIsMobile] = useState(false);
@@ -203,16 +261,16 @@ export const AppLayout: React.FC = () => {
   };
 
   const handleCreateDiaryForDate = (date: Date) => {
-    const newDiary = createDiary(selectedFolderId);
-    // 更新日记的创建时间为选中的日期
-    if (newDiary) {
-      updateDiary(newDiary.id, {
-        createdAt: date.getTime(),
-        updatedAt: date.getTime()
-      });
-    }
-    return newDiary;
+    return createDiary(selectedFolderId, { createdAt: date.getTime() });
   };
+
+  const handleOpenTemplateDiary = useCallback(() => {
+    setCurrentDiaryId(TEMPLATE_DIARY_ID);
+    setSelectedFolderId(null);
+    if (isMobile) {
+      setCurrentView('editor');
+    }
+  }, [isMobile, setCurrentDiaryId]);
 
   const handleChangeDiaryDate = (id: string, date: Date) => {
     updateDiary(id, { createdAt: date.getTime() });
@@ -220,15 +278,23 @@ export const AppLayout: React.FC = () => {
 
   const handleCreateFolder = (name: string, parentId: string | null) => {
     createFolder(name, parentId);
+    window.setTimeout(() => {
+      void runMajorLocalBackup();
+    }, 500);
   };
 
   const handleUpdateFolder = (id: string, name: string) => {
     updateFolder(id, { name });
+    window.setTimeout(() => {
+      void runMajorLocalBackup();
+    }, 500);
   };
 
   const handleSelectTag = (tag: string) => {
+    const normalizedTag = normalizeDiaryTag(tag);
+    if (!normalizedTag) return;
     setSelectedTags(prev =>
-      prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
+      prev.includes(normalizedTag) ? prev.filter(t => t !== normalizedTag) : [...prev, normalizedTag]
     );
   };
 
@@ -237,37 +303,101 @@ export const AppLayout: React.FC = () => {
   };
 
   const handleRenameTag = (oldTag: string, newTag: string) => {
+    const normalizedOldTag = normalizeDiaryTag(oldTag);
+    const normalizedNewTag = normalizeDiaryTag(newTag);
+    if (!normalizedOldTag || !normalizedNewTag) return;
+
     diaries.forEach(diary => {
-      if (diary.tags.includes(oldTag)) {
-        const newTags = diary.tags.map(t => (t === oldTag ? newTag : t));
-        updateDiary(diary.id, { tags: newTags });
+      const nextTags = renameDiaryTag(diary.tags, normalizedOldTag, normalizedNewTag);
+      if (nextTags.join('\u0000') !== normalizeDiaryTags(diary.tags).join('\u0000')) {
+        updateDiary(diary.id, { tags: nextTags });
       }
     });
+    setSelectedTags(prev => normalizeDiaryTags(prev.map(tag => (
+      normalizeDiaryTag(tag) === normalizedOldTag ? normalizedNewTag : tag
+    ))));
+    window.setTimeout(() => {
+      void runMajorLocalBackup();
+    }, 1000);
   };
 
   const handleMergeTags = (tags: string[], newTag: string) => {
+    const normalizedTags = normalizeDiaryTags(tags);
+    const normalizedNewTag = normalizeDiaryTag(newTag);
+    if (normalizedTags.length < 2 || !normalizedNewTag) return;
+
     diaries.forEach(diary => {
-      const hasTags = diary.tags.some(t => tags.includes(t));
-      if (hasTags) {
-        const newTags = [...diary.tags.filter(t => !tags.includes(t)), newTag];
-        updateDiary(diary.id, { tags: Array.from(new Set(newTags)) });
+      const nextTags = mergeDiaryTags(diary.tags, normalizedTags, normalizedNewTag);
+      if (nextTags.join('\u0000') !== normalizeDiaryTags(diary.tags).join('\u0000')) {
+        updateDiary(diary.id, { tags: nextTags });
       }
     });
+    setSelectedTags(prev => {
+      const hadMergedTag = prev.some(tag => normalizedTags.includes(normalizeDiaryTag(tag)));
+      const keptTags = prev.filter(tag => !normalizedTags.includes(normalizeDiaryTag(tag)));
+      return normalizeDiaryTags(hadMergedTag ? [...keptTags, normalizedNewTag] : keptTags);
+    });
+    window.setTimeout(() => {
+      void runMajorLocalBackup();
+    }, 1000);
+  };
+
+  const handleApplyTagMergeSuggestions = (suggestions: DiaryTagMergeSuggestion[]) => {
+    if (suggestions.length === 0) return;
+
+    diaries.forEach(diary => {
+      const nextTags = suggestions.reduce(
+        (tags, suggestion) => mergeDiaryTags(tags, suggestion.tags, suggestion.targetTag),
+        normalizeDiaryTags(diary.tags)
+      );
+      if (nextTags.join('\u0000') !== normalizeDiaryTags(diary.tags).join('\u0000')) {
+        updateDiary(diary.id, { tags: nextTags });
+      }
+    });
+
+    setSelectedTags(prev => {
+      const normalizedSelected = normalizeDiaryTags(prev);
+      const nextSelected = suggestions.reduce((tags, suggestion) => {
+        const sources = new Set(suggestion.tags.map(normalizeDiaryTag));
+        const hadMergedTag = tags.some(tag => sources.has(normalizeDiaryTag(tag)));
+        const keptTags = tags.filter(tag => !sources.has(normalizeDiaryTag(tag)));
+        return normalizeDiaryTags(hadMergedTag ? [...keptTags, suggestion.targetTag] : keptTags);
+      }, normalizedSelected);
+      return nextSelected;
+    });
+    window.setTimeout(() => {
+      void runMajorLocalBackup();
+    }, 1000);
   };
 
   const handleDeleteTag = (tag: string) => {
+    const normalizedTag = normalizeDiaryTag(tag);
+    if (!normalizedTag) return;
+
     diaries.forEach(diary => {
-      if (diary.tags.includes(tag)) {
-        const newTags = diary.tags.filter(t => t !== tag);
-        updateDiary(diary.id, { tags: newTags });
+      const nextTags = deleteDiaryTag(diary.tags, normalizedTag);
+      if (nextTags.join('\u0000') !== normalizeDiaryTags(diary.tags).join('\u0000')) {
+        updateDiary(diary.id, { tags: nextTags });
       }
     });
+    setSelectedTags(prev => prev.filter(selectedTag => normalizeDiaryTag(selectedTag) !== normalizedTag));
+    window.setTimeout(() => {
+      void runMajorLocalBackup();
+    }, 1000);
   };
+
+  const visibleDiaries = useMemo(
+    () => diaries.filter((diary) => !diary.isTemplateDiary),
+    [diaries]
+  );
 
   // Filter diaries by selected tags
   const filteredDiaries = selectedTags.length > 0
-    ? diaries.filter(diary => selectedTags.every(tag => diary.tags.includes(tag)))
-    : diaries;
+    ? visibleDiaries.filter(diary => {
+        const diaryTags = normalizeDiaryTags(diary.tags);
+        return selectedTags.every(tag => diaryTags.includes(tag));
+      })
+    : visibleDiaries;
 
   const diaryContent = currentDiary?.content ?? '';
 
@@ -290,6 +420,13 @@ export const AppLayout: React.FC = () => {
       showToast(getErrorMessage(err) || t('Sign out failed.'));
     }
   };
+
+  const desktopSidebarTabs = [
+    { key: 'folders', label: t('Folders'), icon: FolderIcon },
+    { key: 'tags', label: t('Tags'), icon: TagIcon },
+    { key: 'calendar', label: t('Calendar'), icon: CalendarIcon },
+    { key: 'tasks', label: t('Tasks'), icon: ListChecks },
+  ] as const;
 
   return (
     <div className="h-screen">
@@ -320,81 +457,82 @@ export const AppLayout: React.FC = () => {
           >
             {/* Sidebar Header Tabs - 强调色 */}
             <div
-            className={`flex ${
-                isLeftSidebarPinned || isLeftSidebarExpanded
-                  ? 'flex-row'
-                  : 'flex-col'
+              className={`${
+                isLeftSidebarPinned || isLeftSidebarExpanded ? 'px-3 py-3' : 'flex flex-col'
               }`}
-            style={{ backgroundColor: 'rgba(241, 245, 249, 0.9)' }}
+              style={{ backgroundColor: 'rgba(241, 245, 249, 0.72)' }}
             >
-              <button
-                onClick={() => setLeftPanelView('folders')}
-                className={`flex items-center justify-center gap-1.5 font-medium transition-all duration-200 ease-apple ${
-                  isLeftSidebarPinned || isLeftSidebarExpanded
-                    ? 'flex-1 py-3 text-xs whitespace-nowrap'
-                    : 'flex-col w-12 h-12'
-                }`}
-                style={{
-                  color: leftPanelView === 'folders' ? 'var(--aurora-accent)' : 'var(--aurora-secondary)',
-                  backgroundColor: leftPanelView === 'folders' ? 'rgba(14, 165, 233, 0.15)' : 'transparent',
-                  borderBottom: leftPanelView === 'folders' && (isLeftSidebarPinned || isLeftSidebarExpanded) ? '2px solid var(--aurora-accent)' : 'none',
-                  borderRight: leftPanelView === 'folders' && !(isLeftSidebarPinned || isLeftSidebarExpanded) ? '2px solid var(--aurora-accent)' : 'none'
-                }}
-              >
-                <FolderIcon size={14} />
-                {(isLeftSidebarPinned || isLeftSidebarExpanded) && t('Folders')}
-              </button>
-              <button
-                onClick={() => setLeftPanelView('tags')}
-                className={`flex items-center justify-center gap-1.5 font-medium transition-all duration-200 ease-apple ${
-                  isLeftSidebarPinned || isLeftSidebarExpanded
-                    ? 'flex-1 py-3 text-xs whitespace-nowrap'
-                    : 'flex-col w-12 h-12'
-                }`}
-                style={{
-                  color: leftPanelView === 'tags' ? 'var(--aurora-accent)' : 'var(--aurora-secondary)',
-                  backgroundColor: leftPanelView === 'tags' ? 'rgba(14, 165, 233, 0.15)' : 'transparent',
-                  borderBottom: leftPanelView === 'tags' && (isLeftSidebarPinned || isLeftSidebarExpanded) ? '2px solid var(--aurora-accent)' : 'none',
-                  borderRight: leftPanelView === 'tags' && !(isLeftSidebarPinned || isLeftSidebarExpanded) ? '2px solid var(--aurora-accent)' : 'none'
-                }}
-              >
-                <TagIcon size={14} />
-                {(isLeftSidebarPinned || isLeftSidebarExpanded) && t('Tags')}
-              </button>
-              <button
-                onClick={() => setLeftPanelView('calendar')}
-                className={`flex items-center justify-center gap-1.5 font-medium transition-all duration-200 ease-apple ${
-                  isLeftSidebarPinned || isLeftSidebarExpanded
-                    ? 'flex-1 py-3 text-xs whitespace-nowrap'
-                    : 'flex-col w-12 h-12'
-                }`}
-                style={{
-                  color: leftPanelView === 'calendar' ? 'var(--aurora-accent)' : 'var(--aurora-secondary)',
-                  backgroundColor: leftPanelView === 'calendar' ? 'rgba(14, 165, 233, 0.15)' : 'transparent',
-                  borderBottom: leftPanelView === 'calendar' && (isLeftSidebarPinned || isLeftSidebarExpanded) ? '2px solid var(--aurora-accent)' : 'none',
-                  borderRight: leftPanelView === 'calendar' && !(isLeftSidebarPinned || isLeftSidebarExpanded) ? '2px solid var(--aurora-accent)' : 'none'
-                }}
-              >
-                <CalendarIcon size={14} />
-                {(isLeftSidebarPinned || isLeftSidebarExpanded) && t('Calendar')}
-              </button>
-              <button
-                onClick={() => setLeftPanelView('tasks')}
-                className={`flex items-center justify-center gap-1.5 font-medium transition-all duration-200 ease-apple ${
-                  isLeftSidebarPinned || isLeftSidebarExpanded
-                    ? 'flex-1 py-3 text-xs whitespace-nowrap'
-                    : 'flex-col w-12 h-12'
-                }`}
-                style={{
-                  color: leftPanelView === 'tasks' ? 'var(--aurora-accent)' : 'var(--aurora-secondary)',
-                  backgroundColor: leftPanelView === 'tasks' ? 'rgba(14, 165, 233, 0.15)' : 'transparent',
-                  borderBottom: leftPanelView === 'tasks' && (isLeftSidebarPinned || isLeftSidebarExpanded) ? '2px solid var(--aurora-accent)' : 'none',
-                  borderRight: leftPanelView === 'tasks' && !(isLeftSidebarPinned || isLeftSidebarExpanded) ? '2px solid var(--aurora-accent)' : 'none'
-                }}
-              >
-                <ListChecks size={14} />
-                {(isLeftSidebarPinned || isLeftSidebarExpanded) && t('Tasks')}
-              </button>
+              {isLeftSidebarPinned || isLeftSidebarExpanded ? (
+                <div className="grid grid-cols-4 gap-1">
+                  {desktopSidebarTabs.map(({ key, label, icon: Icon }) => {
+                    const isActive = leftPanelView === key;
+                    return (
+                      <button
+                        key={key}
+                        onClick={() => setLeftPanelView(key)}
+                        className={`flex h-12 flex-col items-center justify-center gap-1 rounded-lg text-[11px] font-medium transition-all duration-200 ease-apple ${
+                          isActive ? 'shadow-sm' : ''
+                        }`}
+                        style={{
+                          color: isActive ? 'var(--aurora-accent)' : 'var(--aurora-secondary)',
+                          backgroundColor: isActive ? 'rgba(14, 165, 233, 0.11)' : 'transparent',
+                          boxShadow: isActive ? 'inset 0 -2px 0 rgba(14, 165, 233, 0.55)' : 'none',
+                        }}
+                      >
+                        <Icon size={15} />
+                        <span className="truncate">{label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <>
+                  <button
+                    onClick={() => setLeftPanelView('folders')}
+                    className="flex-col w-12 h-12 flex items-center justify-center gap-1.5 font-medium transition-all duration-200 ease-apple"
+                    style={{
+                      color: leftPanelView === 'folders' ? 'var(--aurora-accent)' : 'var(--aurora-secondary)',
+                      backgroundColor: leftPanelView === 'folders' ? 'rgba(14, 165, 233, 0.15)' : 'transparent',
+                      borderRight: leftPanelView === 'folders' ? '2px solid var(--aurora-accent)' : 'none'
+                    }}
+                  >
+                    <FolderIcon size={14} />
+                  </button>
+                  <button
+                    onClick={() => setLeftPanelView('tags')}
+                    className="flex-col w-12 h-12 flex items-center justify-center gap-1.5 font-medium transition-all duration-200 ease-apple"
+                    style={{
+                      color: leftPanelView === 'tags' ? 'var(--aurora-accent)' : 'var(--aurora-secondary)',
+                      backgroundColor: leftPanelView === 'tags' ? 'rgba(14, 165, 233, 0.15)' : 'transparent',
+                      borderRight: leftPanelView === 'tags' ? '2px solid var(--aurora-accent)' : 'none'
+                    }}
+                  >
+                    <TagIcon size={14} />
+                  </button>
+                  <button
+                    onClick={() => setLeftPanelView('calendar')}
+                    className="flex-col w-12 h-12 flex items-center justify-center gap-1.5 font-medium transition-all duration-200 ease-apple"
+                    style={{
+                      color: leftPanelView === 'calendar' ? 'var(--aurora-accent)' : 'var(--aurora-secondary)',
+                      backgroundColor: leftPanelView === 'calendar' ? 'rgba(14, 165, 233, 0.15)' : 'transparent',
+                      borderRight: leftPanelView === 'calendar' ? '2px solid var(--aurora-accent)' : 'none'
+                    }}
+                  >
+                    <CalendarIcon size={14} />
+                  </button>
+                  <button
+                    onClick={() => setLeftPanelView('tasks')}
+                    className="flex-col w-12 h-12 flex items-center justify-center gap-1.5 font-medium transition-all duration-200 ease-apple"
+                    style={{
+                      color: leftPanelView === 'tasks' ? 'var(--aurora-accent)' : 'var(--aurora-secondary)',
+                      backgroundColor: leftPanelView === 'tasks' ? 'rgba(14, 165, 233, 0.15)' : 'transparent',
+                      borderRight: leftPanelView === 'tasks' ? '2px solid var(--aurora-accent)' : 'none'
+                    }}
+                  >
+                    <ListChecks size={14} />
+                  </button>
+                </>
+              )}
             </div>
 
             {/* Sidebar Content */}
@@ -412,17 +550,18 @@ export const AppLayout: React.FC = () => {
                   />
                 ) : leftPanelView === 'tags' ? (
                   <TagPanel
-                    diaries={diaries}
+                    diaries={visibleDiaries}
                     selectedTags={selectedTags}
                     onSelectTag={handleSelectTag}
                     onClearTags={handleClearTags}
                     onRenameTag={handleRenameTag}
                     onMergeTags={handleMergeTags}
+                    onApplyTagMergeSuggestions={handleApplyTagMergeSuggestions}
                     onDeleteTag={handleDeleteTag}
                   />
                 ) : leftPanelView === 'calendar' ? (
                   <CalendarView
-                    diaries={diaries}
+                    diaries={visibleDiaries}
                     onSelectDiary={setCurrentDiaryId}
                     onCreateDiary={handleCreateDiaryForDate}
                     onChangeDiaryDate={handleChangeDiaryDate}
@@ -486,6 +625,25 @@ export const AppLayout: React.FC = () => {
                     <BookOpen size={16} />
                   </button>
                   <button
+                    onClick={handleOpenTemplateDiary}
+                    className="p-2 rounded-xl transition-all duration-200 active:scale-95"
+                    style={{
+                      color: 'var(--aurora-secondary)',
+                      backgroundColor: 'transparent'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = 'rgba(14, 165, 233, 0.15)';
+                      e.currentTarget.style.color = 'var(--aurora-accent)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = 'transparent';
+                      e.currentTarget.style.color = 'var(--aurora-secondary)';
+                    }}
+                    title={t('Diary Template')}
+                  >
+                    <FileText size={16} />
+                  </button>
+                  <button
                     onClick={() => setIsSettingsOpen(true)}
                     className="p-2 rounded-xl transition-all duration-200 active:scale-95"
                     style={{
@@ -528,6 +686,25 @@ export const AppLayout: React.FC = () => {
                     title={t('Long-term Ideas')}
                   >
                     <BookOpen size={16} />
+                  </button>
+                  <button
+                    onClick={handleOpenTemplateDiary}
+                    className="p-2 rounded-xl transition-all duration-200 active:scale-95"
+                    style={{
+                      color: 'var(--aurora-secondary)',
+                      backgroundColor: 'transparent'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = 'rgba(14, 165, 233, 0.15)';
+                      e.currentTarget.style.color = 'var(--aurora-accent)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = 'transparent';
+                      e.currentTarget.style.color = 'var(--aurora-secondary)';
+                    }}
+                    title={t('Diary Template')}
+                  >
+                    <FileText size={16} />
                   </button>
                   <button
                     onClick={() => setIsSettingsOpen(true)}
@@ -575,10 +752,11 @@ export const AppLayout: React.FC = () => {
           {/* 中间日记列表 - 毛玻璃材质 */}
           <div className="w-80 flex-shrink-0">
             <DiaryList
-              diaries={filteredDiaries}
+                  diaries={filteredDiaries}
               currentDiaryId={currentDiaryId}
               onSelectDiary={setCurrentDiaryId}
               onCreateDiary={handleCreateDiary}
+              onOpenTemplateDiary={handleOpenTemplateDiary}
               onDeleteDiary={deleteDiary}
               onMoveDiary={moveDiary}
               searchQuery={searchQuery}
@@ -589,14 +767,15 @@ export const AppLayout: React.FC = () => {
           </div>
 
           {/* 右侧编辑器区域 - 毛玻璃材质 */}
-          <div className="flex-1 flex flex-col border-l border-slate-200/60" style={{ backgroundColor: 'rgba(255, 255, 255, 0.75)' }}>
+          <div className="flex-1 flex min-w-0 border-l border-slate-200/60" style={{ backgroundColor: 'rgba(255, 255, 255, 0.75)' }}>
+            <div className="flex min-w-0 flex-1 flex-col">
             {currentDiary ? (
               <>
                 <DiaryHeader
                   diary={currentDiary}
                   wordCount={wordCount}
                   onTitleChange={handleTitleChange}
-                  onTagsChange={(tags) => updateDiary(currentDiaryId!, { tags })}
+                  onTagsChange={(tags) => updateDiary(currentDiaryId!, { tags: normalizeDiaryTags(tags) })}
                   onAnalyze={() => setIsAnalysisOpen(true)}
                   onExport={() => openExportModal('current')}
                   AnalyzeIcon={Zap}
@@ -724,6 +903,7 @@ export const AppLayout: React.FC = () => {
                 </div>
               </div>
             )}
+            </div>
           </div>
         </div>
       )}
@@ -761,6 +941,14 @@ export const AppLayout: React.FC = () => {
                 <BookOpen size={20} />
               </button>
               <button
+                onClick={handleOpenTemplateDiary}
+                className="p-2 rounded-lg text-primary-600 hover:bg-primary-50 transition-colors"
+                title={t('Diary Template')}
+                aria-label={t('Diary Template')}
+              >
+                <FileText size={20} />
+              </button>
+              <button
                 onClick={() => setIsSettingsOpen(true)}
                 className="p-2 rounded-lg text-primary-600 hover:bg-primary-50 transition-colors"
                 title={t('Settings')}
@@ -782,7 +970,7 @@ export const AppLayout: React.FC = () => {
                       wordCount={wordCount}
                       isMobile
                       onTitleChange={handleTitleChange}
-                      onTagsChange={(tags) => updateDiary(currentDiaryId!, { tags })}
+                      onTagsChange={(tags) => updateDiary(currentDiaryId!, { tags: normalizeDiaryTags(tags) })}
                       onAnalyze={() => setIsAnalysisOpen(true)}
                       onExport={() => openExportModal('current')}
                       AnalyzeIcon={Zap}
@@ -859,6 +1047,7 @@ export const AppLayout: React.FC = () => {
                       setCurrentView('editor');
                     }}
                     onCreateDiary={handleCreateDiary}
+                    onOpenTemplateDiary={handleOpenTemplateDiary}
                     onDeleteDiary={deleteDiary}
                     onMoveDiary={moveDiary}
                     searchQuery={searchQuery}
@@ -949,17 +1138,18 @@ export const AppLayout: React.FC = () => {
                 />
               ) : leftPanelView === 'tags' ? (
                 <TagPanel
-                  diaries={diaries}
+                  diaries={visibleDiaries}
                   selectedTags={selectedTags}
                   onSelectTag={handleSelectTag}
                   onClearTags={handleClearTags}
                   onRenameTag={handleRenameTag}
                   onMergeTags={handleMergeTags}
+                  onApplyTagMergeSuggestions={handleApplyTagMergeSuggestions}
                   onDeleteTag={handleDeleteTag}
                 />
               ) : leftPanelView === 'calendar' ? (
                 <CalendarView
-                  diaries={diaries}
+                  diaries={visibleDiaries}
                   onSelectDiary={(id) => {
                     setCurrentDiaryId(id);
                     setCurrentView('editor');
@@ -999,7 +1189,7 @@ export const AppLayout: React.FC = () => {
       <ExportModal
         isOpen={isExportModalOpen}
         onClose={() => setIsExportModalOpen(false)}
-        diaries={diaries}
+        diaries={visibleDiaries}
         currentDiary={currentDiary}
         initialExportType={exportModalInitialType}
       />
@@ -1007,8 +1197,18 @@ export const AppLayout: React.FC = () => {
       <ImportModal
         isOpen={isImportModalOpen}
         onClose={() => setIsImportModalOpen(false)}
-        onImportDiaries={(d, opts) => importDiaries(d, opts)}
-        onImportFolders={(f, opts) => importFolders(f, opts)}
+        onImportDiaries={(d, opts) => {
+          importDiaries(d, opts);
+          window.setTimeout(() => {
+            void runMajorLocalBackup();
+          }, 1000);
+        }}
+        onImportFolders={(f, opts) => {
+          importFolders(f, opts);
+          window.setTimeout(() => {
+            void runMajorLocalBackup();
+          }, 1000);
+        }}
       />
 
       <SettingsModal

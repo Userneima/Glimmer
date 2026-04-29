@@ -1,0 +1,25 @@
+# Vercel deploys the web app only.
+# Desktop/Tauri files stay in the repo for local app builds, but are not uploaded to Vercel.
+
+src-tauri/
+
+# Desktop launchers and installers
+scripts/start-desktop.sh
+scripts/install-desktop-launcher.sh
+scripts/glimmer-launcher.applescript
+scripts/windows/
+
+# Native app build outputs if they are ever copied outside src-tauri/target
+*.app
+*.app/
+*.dmg
+*.pkg
+*.msi
+*.exe
+
+# Local-only generated output
+dist/
+build/
+coverage/
+logs/
+*.log

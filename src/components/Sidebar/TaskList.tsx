@@ -12,6 +12,7 @@ import { formatDate, formatTime } from '../../utils/date';
 import { TaskListHeader } from './TaskListHeader';
 import { TaskBulkToolbar } from './TaskBulkToolbar';
 import { TaskItem } from './TaskItem';
+import { AppleRemindersPanel } from './AppleRemindersPanel';
 
 interface TaskListProps {
   onModalStateChange?: (hasModalOpen: boolean) => void;
@@ -27,6 +28,7 @@ export const TaskList: React.FC<TaskListProps> = ({ onModalStateChange }) => {
     filterTasksBySearch,
     addTask,
     updateTask,
+    sendTaskToReminders,
     toggleComplete,
     deleteTask,
     moveTaskUp,
@@ -47,6 +49,7 @@ export const TaskList: React.FC<TaskListProps> = ({ onModalStateChange }) => {
 
   const { parsePlans, loading: aiLoading, error: aiError } = useAiTaskParser();
 
+  const [sourceTab, setSourceTab] = useState<'reminders' | 'glimmer'>('reminders');
   const [activeTab, setActiveTab] = useState<'active' | 'future' | 'completed'>('active');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -88,10 +91,12 @@ export const TaskList: React.FC<TaskListProps> = ({ onModalStateChange }) => {
       startDate?: number;
       endDate?: number;
       tags?: string[];
+      sourceContext?: Task['sourceContext'];
     } = {
       notes: newTaskNotes.trim() || undefined,
       taskType: newTaskType,
       tags: newTaskTags,
+      sourceContext: { kind: 'manual' },
     };
 
     if (newTaskType === 'time-range') {
@@ -190,19 +195,26 @@ export const TaskList: React.FC<TaskListProps> = ({ onModalStateChange }) => {
     }
   };
 
-  const handleCreateTasksFromPlans = () => {
+  const handleCreateTasksFromPlans = (sendToReminders = false) => {
     if (parsedPlans.length === 0 || hasInvalidPlanDates) {
       return;
     }
 
     parsedPlans.forEach((plan) => {
       if (!plan.startDate || !plan.endDate) return;
-      addTask(plan.title, {
+      const task = addTask(plan.title, {
         notes: plan.notes,
         taskType: 'time-range',
         startDate: plan.startDate,
         endDate: plan.endDate,
+        sourceContext: {
+          kind: 'ai-generated',
+          excerpt: aiPlanInput.trim().slice(0, 500),
+        },
       });
+      if (sendToReminders) {
+        void sendTaskToReminders(task.id, task);
+      }
     });
 
     setAiPlanInput('');
@@ -264,6 +276,34 @@ export const TaskList: React.FC<TaskListProps> = ({ onModalStateChange }) => {
         onOpenCreateModal={() => setShowCreateModal(true)}
       />
 
+      <div className="px-3 pb-2">
+        <div className="grid grid-cols-2 gap-1 rounded-xl bg-white/60 p-1">
+          <button
+            onClick={() => setSourceTab('reminders')}
+            className={`rounded-lg py-2 text-xs font-medium transition-all ${
+              sourceTab === 'reminders' ? 'bg-white text-sky-600 shadow-sm' : 'text-primary-500'
+            }`}
+          >
+            {t('Apple Reminders')}
+          </button>
+          <button
+            onClick={() => setSourceTab('glimmer')}
+            className={`rounded-lg py-2 text-xs font-medium transition-all ${
+              sourceTab === 'glimmer' ? 'bg-white text-sky-600 shadow-sm' : 'text-primary-500'
+            }`}
+          >
+            {t('Glimmer Tasks')}
+          </button>
+        </div>
+      </div>
+
+      {sourceTab === 'reminders' && (
+        <div className="min-h-0 flex-1 p-3 pt-0">
+          <AppleRemindersPanel />
+        </div>
+      )}
+      {sourceTab === 'glimmer' && (
+        <>
         {/* Search Box */}
         <div className="relative mb-3">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--aurora-muted)' }} />
@@ -482,6 +522,7 @@ export const TaskList: React.FC<TaskListProps> = ({ onModalStateChange }) => {
                 onMoveDown={() => moveTaskDown(task.id)}
                 onEdit={() => handleEditTask(task)}
                 onDelete={() => deleteTask(task.id)}
+                onSendToReminders={() => void sendTaskToReminders(task.id)}
                 formatDateRange={formatDateRange}
                 formatCompletedDate={formatCompletedDate}
                 tags={tags}
@@ -896,11 +937,18 @@ export const TaskList: React.FC<TaskListProps> = ({ onModalStateChange }) => {
                 {t('Cancel')}
               </button>
               <button
-                onClick={handleCreateTasksFromPlans}
+                onClick={() => handleCreateTasksFromPlans(false)}
                 disabled={parsedPlans.length === 0 || hasInvalidPlanDates}
                 className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
               >
                 {t('Create Tasks')}
+              </button>
+              <button
+                onClick={() => handleCreateTasksFromPlans(true)}
+                disabled={parsedPlans.length === 0 || hasInvalidPlanDates}
+                className="px-4 py-2 text-sm bg-sky-600 text-white rounded hover:bg-sky-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+              >
+                {t('Create and Send to Reminders')}
               </button>
             </div>
           </div>
@@ -920,6 +968,8 @@ export const TaskList: React.FC<TaskListProps> = ({ onModalStateChange }) => {
             onToggleFavorite={toggleTagFavorite}
           />
         </Modal>
+        </>
+      )}
     </div>
   );
 };

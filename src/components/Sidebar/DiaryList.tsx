@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { Plus, Search, Trash2, Calendar, Folder, Menu } from 'lucide-react';
-import { LONG_TERM_MASTER_ID } from '../../types';
+import { Plus, Search, Trash2, Calendar, Folder, Menu, FileText } from 'lucide-react';
+import { LONG_TERM_MASTER_ID, TEMPLATE_DIARY_ID } from '../../types';
 import type { Diary, Folder as DiaryFolder } from '../../types';
 import { formatDate, formatRelativeTime } from '../../utils/date';
 import { getDiaryWordCount } from '../../utils/text';
@@ -14,6 +14,7 @@ interface DiaryListProps {
   currentDiaryId: string | null;
   onSelectDiary: (id: string) => void;
   onCreateDiary: () => void;
+  onOpenTemplateDiary?: () => void;
   onDeleteDiary: (id: string) => void;
   onMoveDiary: (diaryId: string, folderId: string | null) => void;
   searchQuery: string;
@@ -27,6 +28,7 @@ export const DiaryList: React.FC<DiaryListProps> = ({
   currentDiaryId,
   onSelectDiary,
   onCreateDiary,
+  onOpenTemplateDiary,
   onDeleteDiary,
   onMoveDiary,
   searchQuery,
@@ -72,7 +74,9 @@ export const DiaryList: React.FC<DiaryListProps> = ({
   };
 
   const filteredDiaries = diaries.filter(
-    diary => diary.id === LONG_TERM_MASTER_ID || selectedFolderId === null || diary.folderId === selectedFolderId
+    diary =>
+      diary.id !== TEMPLATE_DIARY_ID &&
+      (diary.id === LONG_TERM_MASTER_ID || selectedFolderId === null || diary.folderId === selectedFolderId)
   );
 
   const sortedDiaries = useMemo(() => {
@@ -179,15 +183,27 @@ export const DiaryList: React.FC<DiaryListProps> = ({
               {t('Showing diaries summary').replace('{visible}', String(visibleCount)).replace('{total}', String(totalCount))}
             </p>
           </div>
-          {/* 加号按钮 - 弥散光渐变强调色 */}
-          <button
-            onClick={onCreateDiary}
-            className="p-2.5 text-white rounded-xl shadow-sm hover:shadow-md transition-all duration-200 active:scale-95"
-            style={{ background: 'linear-gradient(135deg, var(--aurora-accent) 0%, var(--aurora-accent-alt) 100%)' }}
-            title={t('New Diary')}
-          >
-            <Plus size={18} strokeWidth={2} />
-          </button>
+          <div className="flex items-center gap-2">
+            {onOpenTemplateDiary && (
+              <button
+                onClick={onOpenTemplateDiary}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200/70 bg-white/70 text-sm font-medium text-primary-600 shadow-sm transition-all duration-200 hover:bg-primary-50 active:scale-95"
+                title={t('Diary Template')}
+              >
+                <FileText size={16} strokeWidth={1.8} />
+                <span>{t('Diary Template')}</span>
+              </button>
+            )}
+            {/* 加号按钮 - 弥散光渐变强调色 */}
+            <button
+              onClick={onCreateDiary}
+              className="p-2.5 text-white rounded-xl shadow-sm hover:shadow-md transition-all duration-200 active:scale-95"
+              style={{ background: 'linear-gradient(135deg, var(--aurora-accent) 0%, var(--aurora-accent-alt) 100%)' }}
+              title={t('New Diary')}
+            >
+              <Plus size={18} strokeWidth={2} />
+            </button>
+          </div>
         </div>
         {/* 搜索框 - 毛玻璃材质 */}
         <div className="relative">

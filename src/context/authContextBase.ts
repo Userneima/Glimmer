@@ -7,6 +7,7 @@ export interface AuthContextValue {
   loading: boolean;
   error: string | null;
   isConfigured: boolean;
+  allowSelfSignUp: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;

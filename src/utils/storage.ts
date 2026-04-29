@@ -1,4 +1,5 @@
-import type { Diary, Folder, Task, AnalysisResult, Tag, LongTermIdea } from '../types';
+import { LONG_TERM_MASTER_ID, TEMPLATE_DIARY_ID, type Diary, type Folder, type Task, type AnalysisResult, type Tag, type LongTermIdea } from '../types';
+import type { DiaryTagColors } from './diaryTags';
 
 type Backup = {
   timestamp: number;
@@ -10,8 +11,25 @@ const DIARIES_KEY = 'diaries';
 const FOLDERS_KEY = 'folders';
 const BACKUPS_KEY = 'diaries_backups';
 const MAX_BACKUPS = 10;
+const LEGACY_LONG_TERM_MASTER_ID = 'long-term-master';
+const ACCOUNT_SCOPED_DATA_KEYS = [
+  DIARIES_KEY,
+  FOLDERS_KEY,
+  'tasks',
+  'tags',
+  'diary_tag_colors',
+  'analyses',
+  'long_term_ideas',
+  BACKUPS_KEY,
+];
 
 type StorageObject = Record<string, unknown>;
+export type AiSettings = {
+  geminiApiKey?: string | null;
+  deepseekKey?: string | null;
+  deepseekBaseUrl?: string | null;
+  deepseekModel?: string | null;
+};
 
 // 添加一个全局变量来存储当前用户 ID
 let currentUserId: string | null = null;
@@ -23,8 +41,12 @@ export const setCurrentUserId = (userId: string | null) => {
 
 // 获取带用户 ID 前缀的存储键
 const getKey = (key: string): string => {
-  if (currentUserId) {
-    return `${key}-${currentUserId}`;
+  return getKeyForUser(key, currentUserId);
+};
+
+const getKeyForUser = (key: string, userId: string | null): string => {
+  if (userId) {
+    return `${key}-${userId}`;
   }
   return key;
 };
@@ -33,7 +55,62 @@ const asStorageObject = (value: unknown): StorageObject => {
   return typeof value === 'object' && value !== null ? (value as StorageObject) : {};
 };
 
+const isBlankHtmlContent = (content: unknown) => {
+  if (typeof content !== 'string') return true;
+  const text = content
+    .replace(/<br\s*\/?>/gi, '')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .trim();
+  return text.length === 0;
+};
+
+const hasMeaningfulDiaryData = (raw: string | null): boolean => {
+  if (!raw) return false;
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return false;
+    return parsed.some((item) => {
+      const diary = asStorageObject(item);
+      const id = typeof diary.id === 'string' ? diary.id : '';
+      const isSystemDiary =
+        id === LONG_TERM_MASTER_ID ||
+        id === LEGACY_LONG_TERM_MASTER_ID ||
+        id === TEMPLATE_DIARY_ID ||
+        diary.isLongTermMaster === true ||
+        diary.isTemplateDiary === true;
+
+      if (!isSystemDiary) return true;
+      return !isBlankHtmlContent(diary.content);
+    });
+  } catch {
+    return false;
+  }
+};
+
 export const storage = {
+  copyAnonymousDataToUserIfEmpty(userId: string): boolean {
+    const anonymousDiaries = localStorage.getItem(getKeyForUser(DIARIES_KEY, null));
+    const userDiaries = localStorage.getItem(getKeyForUser(DIARIES_KEY, userId));
+
+    if (!hasMeaningfulDiaryData(anonymousDiaries) || hasMeaningfulDiaryData(userDiaries)) {
+      return false;
+    }
+
+    ACCOUNT_SCOPED_DATA_KEYS.forEach((key) => {
+      const sourceKey = getKeyForUser(key, null);
+      const targetKey = getKeyForUser(key, userId);
+      const source = localStorage.getItem(sourceKey);
+      const target = localStorage.getItem(targetKey);
+
+      if (source && (!target || key === DIARIES_KEY || key === FOLDERS_KEY || key === BACKUPS_KEY)) {
+        localStorage.setItem(targetKey, source);
+      }
+    });
+
+    return true;
+  },
+
   // Diaries
   getDiaries(): Diary[] {
     const data = localStorage.getItem(getKey(DIARIES_KEY));
@@ -132,6 +209,8 @@ export const storage = {
         endDate: taskRecord.endDate || null,
         completedAt: taskRecord.completedAt || null,
         tags: taskRecord.tags || [],
+        externalLinks: Array.isArray(taskRecord.externalLinks) ? taskRecord.externalLinks : [],
+        sourceContext: taskRecord.sourceContext || { kind: 'manual' },
       } as Task;
     });
   },
@@ -190,6 +269,15 @@ export const storage = {
     this.saveTags(tags.filter(t => t.id !== id));
   },
 
+  getDiaryTagColors(): DiaryTagColors {
+    const data = localStorage.getItem(getKey('diary_tag_colors'));
+    return data ? JSON.parse(data) : {};
+  },
+
+  saveDiaryTagColors(colors: DiaryTagColors): void {
+    localStorage.setItem(getKey('diary_tag_colors'), JSON.stringify(colors));
+  },
+
   // Long Term Ideas
   getLongTermIdeas(): LongTermIdea[] {
     const data = localStorage.getItem(getKey('long_term_ideas'));
@@ -221,12 +309,12 @@ export const storage = {
   },
 
   // AI settings (store user's Gemini free API key and optional DeepSeek settings locally)
-  getAiSettings(): { geminiApiKey?: string | null; deepseekKey?: string | null; deepseekBaseUrl?: string | null; deepseekModel?: string | null } {
+  getAiSettings(): AiSettings {
     const data = localStorage.getItem(getKey('ai_settings'));
     return data ? JSON.parse(data) : {};
   },
 
-  saveAiSettings(settings: { geminiApiKey?: string | null; deepseekKey?: string | null; deepseekBaseUrl?: string | null; deepseekModel?: string | null }): void {
+  saveAiSettings(settings: AiSettings): void {
     localStorage.setItem(getKey('ai_settings'), JSON.stringify(settings));
   },
 
@@ -251,6 +339,7 @@ export const storage = {
     localStorage.removeItem(getKey(FOLDERS_KEY));
     localStorage.removeItem(getKey('tasks'));
     localStorage.removeItem(getKey('tags'));
+    localStorage.removeItem(getKey('diary_tag_colors'));
     localStorage.removeItem(getKey('analyses'));
     localStorage.removeItem(getKey(BACKUPS_KEY));
   },

@@ -16,6 +16,13 @@ export const showToast = (
   type: ToastType = 'info',
   duration = 2800
 ): string => {
+  if (
+    message === 'Supabase is temporarily unreachable.' ||
+    message === 'Supabase is temporarily unavailable.'
+  ) {
+    return '';
+  }
+
   const payload: ToastPayload = {
     id: createToastId(),
     message,

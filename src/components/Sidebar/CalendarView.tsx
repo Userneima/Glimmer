@@ -24,6 +24,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 }) => {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isMonthCalendarOpen, setIsMonthCalendarOpen] = useState(false);
+  const [monthPreviewDate, setMonthPreviewDate] = useState<Date>(new Date());
   const [editingDiary, setEditingDiary] = useState<Diary | null>(null);
   const [editDateStr, setEditDateStr] = useState('');
 
@@ -68,23 +70,6 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     return map;
   }, [diaries]);
 
-  // 按日期分组任务
-  const tasksByDate = React.useMemo(() => {
-    const map = new Map<string, Task[]>();
-    const today = new Date();
-    const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-    const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-
-    // Get all dates in current month
-    for (let d = new Date(startOfMonth); d <= endOfMonth; d.setDate(d.getDate() + 1)) {
-      const tasks = getTasksForDate(new Date(d));
-      if (tasks.length > 0) {
-        map.set(new Date(d).toDateString(), tasks);
-      }
-    }
-    return map;
-  }, [getTasksForDate]);
-
   // 获取某天的日记数量
   const getDiaryCountForDate = (date: Date): number => {
     const dateKey = date.toDateString();
@@ -93,13 +78,14 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
   // 获取某天的任务数量
   const getTaskCountForDate = (date: Date): number => {
-    const dateKey = date.toDateString();
-    return tasksByDate.get(dateKey)?.length || 0;
+    return getTasksForDate(date).length;
   };
 
   // 获取选中日期的日记和任务
   const selectedDateDiaries = diariesByDate.get(selectedDate.toDateString()) || [];
   const selectedDateTasks = getTasksForDate(selectedDate);
+  const monthPreviewDiaries = diariesByDate.get(monthPreviewDate.toDateString()) || [];
+  const monthPreviewTasks = getTasksForDate(monthPreviewDate);
 
   // 自定义日期单元格内容
   const tileContent = ({ date, view }: { date: Date; view: string }) => {
@@ -128,7 +114,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     if (view === 'month') {
       const diaryCount = getDiaryCountForDate(date);
       const taskCount = getTaskCountForDate(date);
-      const isSelected = date.toDateString() === selectedDate.toDateString();
+      const isSelected = date.toDateString() === monthPreviewDate.toDateString();
       const isToday = date.toDateString() === new Date().toDateString();
 
       let classes = 'relative ';
@@ -141,7 +127,13 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     return '';
   };
 
-  const handleDateClick = (date: Date) => {
+  const openMonthCalendar = () => {
+    setMonthPreviewDate(selectedDate);
+    setIsMonthCalendarOpen(true);
+  };
+
+  const handleMonthDateClick = (date: Date) => {
+    setMonthPreviewDate(date);
     setSelectedDate(date);
   };
 
@@ -200,61 +192,84 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     return `${formatDate(startDate)} - ${formatDate(endDate)}`;
   };
 
+  const sectionCardStyle = {
+    backgroundColor: 'rgba(255, 255, 255, 0.78)',
+    border: '1px solid rgba(226, 232, 240, 0.72)',
+    boxShadow: '0 8px 24px rgba(148, 163, 184, 0.06)',
+  };
+
   return (
     <div className="h-full flex flex-col" style={{ backgroundColor: 'rgba(255, 255, 255, 0.75)' }}>
       {/* 标题区 - 毛玻璃风 */}
-      <div className="p-4" style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.2)' }}>
-        <h2 className="text-lg font-semibold" style={{ color: 'var(--aurora-primary)' }}>{t('Calendar View')}</h2>
+      <div className="px-4 py-3" style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.2)' }}>
+        <h2 className="text-base font-semibold" style={{ color: 'var(--aurora-primary)' }}>{t('Calendar View')}</h2>
       </div>
 
       <div className="flex-1 overflow-y-auto">
-        {/* 日历区域 */}
-        <div className="p-4">
-          <div className="calendar-container">
-            <Calendar
-              onChange={(value) => handleDateClick(value as Date)}
-              value={selectedDate}
-              tileContent={tileContent}
-              tileClassName={tileClassName}
-              locale="zh-CN"
-              className="w-full border-none shadow-sm rounded-xl"
-            />
-          </div>
-        </div>
+        <div className="px-4 py-3 space-y-3">
+          <div
+            className="rounded-2xl px-3 py-3"
+            style={{
+              ...sectionCardStyle,
+              background: 'rgba(255, 255, 255, 0.7)',
+            }}
+          >
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <div className="text-xs" style={{ color: 'var(--aurora-muted)' }}>{t('Calendar')}</div>
+                <div className="mt-0.5 truncate text-lg font-semibold leading-tight" style={{ color: 'var(--aurora-primary)' }}>
+                  {formatDate(selectedDate.getTime())}
+                </div>
+              </div>
+              <button
+                onClick={openMonthCalendar}
+                className="inline-flex h-9 w-10 shrink-0 items-center justify-center rounded-lg transition-all duration-200"
+                style={{
+                  backgroundColor: 'rgba(239, 246, 255, 0.86)',
+                  color: 'var(--aurora-accent)',
+                  boxShadow: 'inset 0 0 0 1px rgba(59, 130, 246, 0.12)',
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-1px)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; }}
+                title={t('Month Calendar')}
+              >
+                <CalendarIconSmall size={19} />
+              </button>
+            </div>
 
-        {/* 日期信息区 - 毛玻璃风 */}
-        <div className="px-4 py-3" style={{ backgroundColor: 'rgba(255, 255, 255, 0.5)' }}>
-          <div className="flex items-center justify-between">
-            <h3 className="font-semibold" style={{ color: 'var(--aurora-primary)' }}>
-              {formatDate(selectedDate.getTime())}
-            </h3>
-            <div className="flex gap-2">
+            <div className="mt-3 flex items-center gap-2">
               <button
                 onClick={handleCreateTaskForDate}
-                className="text-sm font-medium px-2 py-1 rounded-xl transition-all duration-200"
-                style={{ color: 'var(--aurora-accent)' }}
-                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.4)'; }}
+                className="text-sm font-medium px-2.5 py-1.5 rounded-lg transition-all duration-200"
+                style={{
+                  color: 'var(--aurora-accent)',
+                  backgroundColor: 'transparent',
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(239, 246, 255, 0.86)'; }}
                 onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
               >
                 + {t('Task')}
               </button>
               <button
                 onClick={handleCreateDiaryForDate}
-                className="text-sm font-medium px-2 py-1 rounded-xl transition-all duration-200"
-                style={{ color: 'var(--aurora-accent)' }}
-                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.4)'; }}
+                className="text-sm font-medium px-2.5 py-1.5 rounded-lg transition-all duration-200"
+                style={{
+                  color: 'var(--aurora-accent)',
+                  backgroundColor: 'transparent',
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(239, 246, 255, 0.86)'; }}
                 onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
               >
                 + {t('Diary')}
               </button>
             </div>
           </div>
-        </div>
 
-        {/* 日记/任务列表区 - 毛玻璃风 */}
-        <div className="p-4 min-h-[120px]">
           {selectedDateDiaries.length === 0 && selectedDateTasks.length === 0 ? (
-            <div className="text-center py-6 rounded-xl" style={{ backgroundColor: 'rgba(255, 255, 255, 0.8)', color: 'var(--aurora-muted)' }}>
+            <div
+              className="text-center py-7 px-4 rounded-2xl"
+              style={{ ...sectionCardStyle, color: 'var(--aurora-muted)' }}
+            >
               <p className="text-sm">{t('No diaries or tasks on this date')}</p>
               <div className="flex justify-center gap-3 mt-2">
                 <button
@@ -278,14 +293,13 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               </div>
             </div>
           ) : (
-            <div className="space-y-4">
-              {/* Tasks Section */}
-              {selectedDateTasks.length > 0 && (
-                <div>
-                  <h4 className="text-sm font-semibold mb-2 flex items-center gap-1" style={{ color: 'var(--aurora-secondary)' }}>
-                    <CalendarIconSmall size={14} style={{ color: 'var(--aurora-accent)' }} />
-                    {t('Tasks')} ({selectedDateTasks.length})
-                  </h4>
+            <div className="space-y-3">
+              <section className="rounded-2xl p-3.5" style={sectionCardStyle}>
+                <h4 className="text-sm font-semibold mb-3 flex items-center gap-1.5" style={{ color: 'var(--aurora-secondary)' }}>
+                  <CalendarIconSmall size={15} style={{ color: 'var(--aurora-accent)' }} />
+                  {t('Tasks')} ({selectedDateTasks.length})
+                </h4>
+                {selectedDateTasks.length > 0 ? (
                   <div className="space-y-2">
                     {selectedDateTasks.map(task => (
                       <div
@@ -316,16 +330,26 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                       </div>
                     ))}
                   </div>
-                </div>
-              )}
+                ) : (
+                  <button
+                    onClick={handleCreateTaskForDate}
+                    className="w-full text-left rounded-lg px-3 py-2.5 text-sm transition-colors"
+                    style={{
+                      color: 'var(--aurora-accent)',
+                      backgroundColor: 'rgba(239, 246, 255, 0.58)',
+                    }}
+                  >
+                    + {t('Create task')}
+                  </button>
+                )}
+              </section>
 
-              {/* Diaries Section */}
-              {selectedDateDiaries.length > 0 && (
-                <div>
-                  <h4 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-1">
+              <section className="rounded-2xl p-3.5" style={sectionCardStyle}>
+                <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-1.5">
                     <CalendarIcon size={14} className="text-blue-600" />
                     {t('Diaries')} ({selectedDateDiaries.length})
-                  </h4>
+                </h4>
+                {selectedDateDiaries.length > 0 ? (
                   <div className="space-y-2">
                     {selectedDateDiaries.map(diary => (
                       <div
@@ -364,8 +388,19 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                       </div>
                     ))}
                   </div>
-                </div>
-              )}
+                ) : (
+                  <button
+                    onClick={handleCreateDiaryForDate}
+                    className="w-full text-left rounded-lg px-3 py-2.5 text-sm transition-colors"
+                    style={{
+                      color: 'var(--aurora-accent)',
+                      backgroundColor: 'rgba(239, 246, 255, 0.58)',
+                    }}
+                  >
+                    + {t('Create diary')}
+                  </button>
+                )}
+              </section>
 
               <Modal isOpen={isModalOpen} onClose={closeModal} title={t('Change Diary Date')}>
                 <div>
@@ -396,6 +431,98 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
           )}
         </div>
       </div>
+
+      <Modal
+        isOpen={isMonthCalendarOpen}
+        onClose={() => setIsMonthCalendarOpen(false)}
+        title={t('Month Calendar')}
+        maxWidth="xl"
+      >
+        <div className="space-y-4">
+          <div className="calendar-container rounded-[24px] p-3" style={sectionCardStyle}>
+            <Calendar
+              onChange={(value) => handleMonthDateClick(value as Date)}
+              value={monthPreviewDate}
+              tileContent={tileContent}
+              tileClassName={tileClassName}
+              locale="zh-CN"
+              className="w-full border-none shadow-sm rounded-xl"
+            />
+          </div>
+
+          <div className="rounded-[24px] p-4" style={sectionCardStyle}>
+            <div className="grid gap-3 md:grid-cols-2">
+              <section
+                className="rounded-[20px] p-4"
+                style={{ backgroundColor: 'rgba(255, 255, 255, 0.76)', border: '1px solid rgba(255,255,255,0.6)' }}
+              >
+                <h4 className="text-sm font-semibold mb-3 flex items-center gap-1.5" style={{ color: 'var(--aurora-secondary)' }}>
+                  <CalendarIconSmall size={15} style={{ color: 'var(--aurora-accent)' }} />
+                  {t('Tasks')} ({monthPreviewTasks.length})
+                </h4>
+                {monthPreviewTasks.length > 0 ? (
+                  <div className="space-y-2">
+                    {monthPreviewTasks.slice(0, 4).map(task => (
+                      <div
+                        key={task.id}
+                        className="rounded-2xl border border-orange-100 bg-gradient-to-r from-orange-50 to-amber-50/80 px-3 py-2"
+                      >
+                        <div className="text-sm font-medium text-gray-800 line-clamp-1">{task.title}</div>
+                        {task.notes && (
+                          <div className="mt-1 text-xs text-gray-500 line-clamp-2">{task.notes}</div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm" style={{ color: 'var(--aurora-muted)' }}>{t('No tasks on this date')}</p>
+                )}
+              </section>
+
+              <section
+                className="rounded-[20px] p-4"
+                style={{ backgroundColor: 'rgba(255, 255, 255, 0.76)', border: '1px solid rgba(255,255,255,0.6)' }}
+              >
+                <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-1.5">
+                  <CalendarIcon size={14} className="text-blue-600" />
+                  {t('Diaries')} ({monthPreviewDiaries.length})
+                </h4>
+                {monthPreviewDiaries.length > 0 ? (
+                  <div className="space-y-2">
+                    {monthPreviewDiaries.slice(0, 4).map(diary => (
+                      <button
+                        key={diary.id}
+                        onClick={() => {
+                          setSelectedDate(monthPreviewDate);
+                          setIsMonthCalendarOpen(false);
+                          onSelectDiary(diary.id);
+                        }}
+                        className="block w-full rounded-2xl border border-gray-200 bg-white/80 px-3 py-2 text-left transition-colors hover:bg-white"
+                      >
+                        <div className="text-sm font-medium text-gray-900 line-clamp-1">{diary.title || t('Untitled')}</div>
+                        {diary.tags.length > 0 && (
+                          <div className="mt-2 flex flex-wrap gap-1">
+                            {diary.tags.slice(0, 3).map(tag => (
+                              <span
+                                key={tag}
+                                className="inline-block rounded-full bg-blue-100 px-2 py-0.5 text-xs text-blue-700"
+                              >
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm" style={{ color: 'var(--aurora-muted)' }}>{t('No diaries on this date')}</p>
+                )}
+              </section>
+            </div>
+          </div>
+        </div>
+      </Modal>
 
       {/* Create Task Modal */}
       <Modal

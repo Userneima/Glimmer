@@ -1,4 +1,5 @@
 export const LONG_TERM_MASTER_ID = '00000000-0000-4000-a000-000000000001';
+export const TEMPLATE_DIARY_ID = '00000000-0000-4000-a000-000000000002';
 
 export interface Diary {
   id: string;
@@ -9,6 +10,7 @@ export interface Diary {
   createdAt: number;
   updatedAt: number;
   isLongTermMaster?: boolean;
+  isTemplateDiary?: boolean;
 }
 
 export interface Folder {
@@ -28,6 +30,37 @@ export interface AppState {
 
 export type TaskType = 'long-term' | 'time-range';
 
+export interface AppleReminder {
+  externalId: string;
+  title: string;
+  notes?: string;
+  dueAt?: number | null;
+  completed: boolean;
+  calendarId?: string;
+  calendarTitle?: string;
+  priority?: number;
+}
+
+export type ExternalTaskProvider = 'apple-reminders';
+export type ExternalTaskStatus = 'linked' | 'failed' | 'deleted-externally';
+
+export interface ExternalTaskLink {
+  provider: ExternalTaskProvider;
+  externalId: string;
+  calendarId?: string;
+  calendarTitle?: string;
+  syncedAt: number;
+  status: ExternalTaskStatus;
+  lastError?: string;
+}
+
+export interface TaskSourceContext {
+  kind: 'manual' | 'diary' | 'long-term-idea' | 'ai-generated';
+  diaryId?: string;
+  ideaId?: string;
+  excerpt?: string;
+}
+
 export interface Task {
   id: string;
   title: string;
@@ -45,6 +78,8 @@ export interface Task {
   completedAt?: number | null;  // Completion timestamp
   order?: number;               // Custom order for sorting
   tags: string[];               // Tags associated with the task
+  externalLinks?: ExternalTaskLink[];
+  sourceContext?: TaskSourceContext;
 }
 
 export interface Tag {

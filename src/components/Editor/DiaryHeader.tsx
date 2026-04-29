@@ -28,7 +28,7 @@ export const DiaryHeader: React.FC<DiaryHeaderProps> = ({
   onExport,
   AnalyzeIcon,
 }) => {
-  const titlePlaceholder = t('Untitled');
+  const titlePlaceholder = diary.isTemplateDiary ? t('Leave blank to use date only') : t('Untitled');
   const tagsPlaceholder = isMobile ? t('Add tags...') : t('Add tags (press Enter)...');
 
   const containerCommon =
@@ -42,16 +42,25 @@ export const DiaryHeader: React.FC<DiaryHeaderProps> = ({
         borderBottom: '1px solid rgba(200, 210, 220, 0.4)',
       }}
     >
-      <div className={containerCommon + (isMobile ? ' mb-3' : '')}>
-        <Input
-          value={diary.title}
-          onChange={(e) => onTitleChange(e.target.value)}
-          placeholder={titlePlaceholder}
-          variant="minimal"
-          className={(isMobile ? 'text-xl' : 'text-2xl') + ' font-bold border-none focus:ring-0 px-0 flex-1 min-w-0 tracking-tight'}
-          style={{ color: 'var(--aurora-primary)' }}
-        />
-        <div className="ml-3 flex items-center gap-2">
+      <div className={containerCommon + (isMobile ? ' mb-3' : '') + ' min-w-0'}>
+        <div className="flex-1 min-w-0">
+          {diary.isTemplateDiary && (
+            <div className="mb-2">
+              <span className="inline-flex items-center rounded-full bg-sky-100 px-2.5 py-1 text-xs font-semibold text-sky-700">
+                {t('Template')}
+              </span>
+            </div>
+          )}
+          <Input
+            value={diary.title}
+            onChange={(e) => onTitleChange(e.target.value)}
+            placeholder={titlePlaceholder}
+            variant="minimal"
+            className={(isMobile ? 'text-xl' : 'text-2xl') + ' font-bold border-none focus:ring-0 px-0 w-full min-w-0 tracking-tight'}
+            style={{ color: 'var(--aurora-primary)' }}
+          />
+        </div>
+        <div className="ml-3 flex shrink-0 items-center gap-2">
           <Button
             type="button"
             variant="glass"
@@ -81,13 +90,13 @@ export const DiaryHeader: React.FC<DiaryHeaderProps> = ({
         </div>
       </div>
 
-      <div className={isMobile ? '' : 'flex items-center'}>
-        <div className="flex-1">
+      <div className={isMobile ? 'min-w-0' : 'flex min-w-0 items-center'}>
+        <div className="min-w-0 flex-1">
           <TagInput
             tags={diary.tags}
             onChange={onTagsChange}
             placeholder={tagsPlaceholder}
-            className={isMobile ? 'mb-3' : undefined}
+            className={(isMobile ? 'mb-3 ' : '') + 'min-w-0 overflow-hidden'}
           />
         </div>
       </div>

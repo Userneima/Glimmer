@@ -1,6 +1,7 @@
 import type { PostgrestError } from '@supabase/supabase-js';
-import { LONG_TERM_MASTER_ID, type Diary, type Folder, type Task, type LongTermIdea } from '../types';
+import { LONG_TERM_MASTER_ID, type Diary, type Folder, type Task, type LongTermIdea, type ExternalTaskLink, type TaskSourceContext } from '../types';
 import { requireSupabase } from './supabase';
+import type { AiSettings } from './storage';
 
 /** Legacy long-term master diary id (non-UUID); must map before writing to uuid columns. */
 const LEGACY_LONG_TERM_DIARY_ID = 'long-term-master';
@@ -16,6 +17,16 @@ const UUID_TEXT_RE =
 
 function isUuidText(value: string): boolean {
   return UUID_TEXT_RE.test(value.trim());
+}
+
+function isBlankHtmlContent(content: string | undefined | null): boolean {
+  if (!content) return true;
+  const text = content
+    .replace(/<br\s*\/?>/gi, '')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .trim();
+  return text.length === 0;
 }
 
 /** PostgREST: ON CONFLICT target must match a unique index; composite PK needs user_id,id. */
@@ -73,6 +84,17 @@ type TaskRow = {
   completed_at: number | string | null;
   sort_order: number | null;
   tags?: string[] | null;
+  external_links?: ExternalTaskLink[] | null;
+  source_context?: TaskSourceContext | null;
+};
+
+type UserAiSettingsRow = {
+  user_id: string;
+  gemini_api_key: string | null;
+  deepseek_key: string | null;
+  deepseek_base_url: string | null;
+  deepseek_model: string | null;
+  updated_at?: string | null;
 };
 
 const toDiary = (row: DiaryRow): Diary => {
@@ -149,11 +171,13 @@ const toTask = (row: TaskRow): Task => {
     completedAt: row.completed_at ? toMs(row.completed_at, createdAt) : null,
     order: row.sort_order ?? undefined,
     tags: row.tags ?? [],
+    externalLinks: row.external_links ?? [],
+    sourceContext: row.source_context ?? { kind: 'manual' },
   };
 };
 
-const toTaskRow = (userId: string, task: Task): TaskRow => {
-  return {
+const toTaskRow = (userId: string, task: Task, includeExternalFields = true): TaskRow => {
+  const row: TaskRow = {
     id: task.id,
     user_id: userId,
     title: task.title,
@@ -170,9 +194,63 @@ const toTaskRow = (userId: string, task: Task): TaskRow => {
     sort_order: task.order ?? null,
     tags: task.tags.length > 0 ? task.tags : null,
   };
+  if (includeExternalFields) {
+    row.external_links = task.externalLinks && task.externalLinks.length > 0 ? task.externalLinks : null;
+    row.source_context = task.sourceContext ?? { kind: 'manual' };
+  }
+  return row;
 };
 
+const toAiSettings = (row: UserAiSettingsRow | null): AiSettings => {
+  if (!row) return {};
+  return {
+    geminiApiKey: row.gemini_api_key,
+    deepseekKey: row.deepseek_key,
+    deepseekBaseUrl: row.deepseek_base_url,
+    deepseekModel: row.deepseek_model,
+  };
+};
+
+const toAiSettingsRow = (userId: string, settings: AiSettings): UserAiSettingsRow => ({
+  user_id: userId,
+  gemini_api_key: settings.geminiApiKey ?? null,
+  deepseek_key: settings.deepseekKey ?? null,
+  deepseek_base_url: settings.deepseekBaseUrl ?? null,
+  deepseek_model: settings.deepseekModel ?? null,
+});
+
 export const cloud = {
+  async fetchAiSettings(userId: string): Promise<AiSettings | null> {
+    const supabase = requireSupabase();
+    const { data, error } = await supabase
+      .from('user_ai_settings')
+      .select('*')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (error) {
+      const blob = `${error.message} ${error.details} ${error.hint}`.toLowerCase();
+      if (
+        error.code === '42P01' ||
+        error.code === 'PGRST116' ||
+        blob.includes('user_ai_settings') ||
+        blob.includes('does not exist')
+      ) {
+        return null;
+      }
+      throw error;
+    }
+
+    return toAiSettings((data as UserAiSettingsRow | null) ?? null);
+  },
+
+  async upsertAiSettings(userId: string, settings: AiSettings): Promise<void> {
+    const supabase = requireSupabase();
+    const row = toAiSettingsRow(userId, settings);
+    const { error } = await supabase.from('user_ai_settings').upsert(row, { onConflict: 'user_id' });
+    if (error) throw error;
+  },
+
   async fetchDiaries(userId: string): Promise<Diary[]> {
     const supabase = requireSupabase();
     // Try ordering by updated_at; fall back to created_at if column missing
@@ -220,6 +298,20 @@ export const cloud = {
       return;
     }
     const row = toDiaryRow(userId, diary);
+    if (idForCloud === LONG_TERM_MASTER_ID && isBlankHtmlContent(row.content)) {
+      const existing = await supabase
+        .from('diaries')
+        .select('content')
+        .eq('id', idForCloud)
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (!existing.error && existing.data && !isBlankHtmlContent((existing.data as Pick<DiaryRow, 'content'>).content)) {
+        console.warn('[cloud] Skip blank overwrite for Long-term Master diary');
+        return;
+      }
+    }
+
     let { error } = await supabase.from('diaries').upsert(row, { onConflict: 'id' });
 
     if (error && shouldRetryDiaryUpsertWithCompositePk(error)) {
@@ -312,8 +404,14 @@ export const cloud = {
     if (error) {
       // 42703 = column does not exist (tags column not yet added to schema)
       if (error.code === '42703') {
-        // Silently ignore - tags will sync when schema is updated
-        return;
+        const legacyRow = toTaskRow(userId, task, false);
+        const { error: legacyError } = await supabase
+          .from('tasks')
+          .upsert(legacyRow, { onConflict: 'id' });
+        if (!legacyError || legacyError.code === '42703') {
+          return;
+        }
+        throw legacyError;
       }
       throw error;
     }

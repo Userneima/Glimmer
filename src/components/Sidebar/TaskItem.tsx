@@ -1,5 +1,5 @@
 import React from 'react';
-import { Calendar as CalendarIcon, ChevronDown, ChevronUp, Clock, Edit, Trash2 } from 'lucide-react';
+import { Bell, Calendar as CalendarIcon, ChevronDown, ChevronUp, Clock, Edit, Trash2 } from 'lucide-react';
 import type { Task } from '../../types';
 import { t } from '../../i18n';
 import type { Tag } from '../../types';
@@ -17,6 +17,7 @@ interface TaskItemProps {
   onMoveDown: () => void;
   onEdit: () => void;
   onDelete: () => void;
+  onSendToReminders: () => void;
   formatDateRange: (startDate: number | null | undefined, endDate: number | null | undefined) => string;
   formatCompletedDate: (timestamp: number | null | undefined) => string;
   tags: Tag[];
@@ -35,6 +36,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   onMoveDown,
   onEdit,
   onDelete,
+  onSendToReminders,
   formatDateRange,
   formatCompletedDate,
   tags,
@@ -51,6 +53,13 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   const tagObjects = (task.tags || [])
     .map((tagId) => tags.find((t) => t.id === tagId))
     .filter((tag): tag is Tag => Boolean(tag));
+  const remindersLink = task.externalLinks?.find(link => link.provider === 'apple-reminders');
+  const isLinkedToReminders = remindersLink?.status === 'linked';
+  const reminderStatusText = isLinkedToReminders
+    ? `${t('Sent to Reminders')}${remindersLink.calendarTitle ? ` · ${remindersLink.calendarTitle}` : ''}`
+    : remindersLink?.status === 'failed'
+      ? t('Reminders send failed')
+      : null;
 
   return (
     <li
@@ -117,6 +126,14 @@ export const TaskItem: React.FC<TaskItemProps> = ({
             </>
           )}
           <button
+            onClick={onSendToReminders}
+            disabled={isLinkedToReminders}
+            className="text-sky-500 hover:text-sky-700 disabled:text-gray-300 disabled:cursor-not-allowed flex-shrink-0"
+            title={isLinkedToReminders ? t('Already sent to Reminders') : t('Send to Reminders')}
+          >
+            <Bell size={14} />
+          </button>
+          <button
             onClick={onEdit}
             className="text-blue-500 hover:text-blue-700 flex-shrink-0"
             title={t('Edit')}
@@ -135,6 +152,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
       {(task.notes ||
         (task.taskType === 'time-range' && task.startDate && task.endDate) ||
         (task.tags && task.tags.length > 0) ||
+        reminderStatusText ||
         (isActiveTabCompleted && task.completedAt)) && (
         <div className="ml-6 mt-1">
           {task.notes && (
@@ -184,9 +202,13 @@ export const TaskItem: React.FC<TaskItemProps> = ({
               )}
             </div>
           )}
+          {reminderStatusText && (
+            <p className={`mt-1 text-xs ${isLinkedToReminders ? 'text-sky-600' : 'text-amber-600'}`}>
+              {reminderStatusText}
+            </p>
+          )}
         </div>
       )}
     </li>
   );
 };
-

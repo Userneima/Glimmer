@@ -3,7 +3,7 @@ import { t } from '../../i18n';
 import { useAuth } from '../../context/useAuth';
 import { isSupabaseConfigured } from '../../utils/supabase';
 import { showToast } from '../../utils/toast';
-import { BookOpen, AlertCircle, AlertTriangle } from 'lucide-react';
+import { BookOpen, AlertCircle, AlertTriangle, Shield } from 'lucide-react';
 
 const extractErrorMessage = (err: unknown): string => {
   if (err instanceof Error) {
@@ -26,7 +26,7 @@ const extractErrorMessage = (err: unknown): string => {
 };
 
 export const AuthScreen: React.FC = () => {
-  const { signIn, signUp, loading, error } = useAuth();
+  const { signIn, signUp, loading, error, allowSelfSignUp } = useAuth();
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -56,6 +56,7 @@ export const AuthScreen: React.FC = () => {
   };
 
   const toggleMode = () => {
+    if (!allowSelfSignUp) return;
     setMode((prev) => (prev === 'signin' ? 'signup' : 'signin'));
   };
 
@@ -78,7 +79,7 @@ export const AuthScreen: React.FC = () => {
             {t('Cloud Sync Login')}
           </h1>
           <p className="text-base text-primary-500">
-            {t('Sign in to access your cloud diaries across devices.')}
+            {allowSelfSignUp ? t('Sign in to access your cloud diaries across devices.') : t('Internal members only. Sign in with your provisioned account.')}
           </p>
         </div>
 
@@ -97,6 +98,15 @@ export const AuthScreen: React.FC = () => {
             <div className="mb-6 flex items-start gap-3 rounded-apple-lg border border-semantic-error/30 bg-semantic-error/10 p-4">
               <AlertCircle className="w-5 h-5 text-semantic-error flex-shrink-0 mt-0.5" />
               <p className="text-sm text-semantic-error leading-relaxed">{error}</p>
+            </div>
+          )}
+
+          {!allowSelfSignUp && (
+            <div className="mb-6 flex items-start gap-3 rounded-apple-lg border border-accent-500/15 bg-accent-500/5 p-4">
+              <Shield className="w-5 h-5 text-accent-500 flex-shrink-0 mt-0.5" />
+              <p className="text-sm text-primary-700 leading-relaxed">
+                {t('This workspace is limited to internal accounts. Contact the administrator to create or enable your account.')}
+              </p>
             </div>
           )}
 
@@ -182,24 +192,26 @@ export const AuthScreen: React.FC = () => {
             </button>
           </form>
 
-          <div className="mt-6 pt-6 border-t border-primary-100">
-            <button
-              type="button"
-              onClick={toggleMode}
-              className="
-                w-full py-2.5
-                text-sm font-medium text-accent-500
-                rounded-apple
-                transition-all duration-200 ease-apple
-                hover:bg-accent-50 hover:text-accent-600
-                active:scale-[0.98]
-                disabled:opacity-50 disabled:cursor-not-allowed
-              "
-              disabled={disabled}
-            >
-              {mode === 'signin' ? t('No account? Sign up') : t('Have an account? Sign in')}
-            </button>
-          </div>
+          {allowSelfSignUp && (
+            <div className="mt-6 pt-6 border-t border-primary-100">
+              <button
+                type="button"
+                onClick={toggleMode}
+                className="
+                  w-full py-2.5
+                  text-sm font-medium text-accent-500
+                  rounded-apple
+                  transition-all duration-200 ease-apple
+                  hover:bg-accent-50 hover:text-accent-600
+                  active:scale-[0.98]
+                  disabled:opacity-50 disabled:cursor-not-allowed
+                "
+                disabled={disabled}
+              >
+                {mode === 'signin' ? t('No account? Sign up') : t('Have an account? Sign in')}
+              </button>
+            </div>
+          )}
         </div>
         
         {/* Footer */}

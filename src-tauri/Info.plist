@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>NSRemindersUsageDescription</key>
+  <string>Glimmer needs Reminders access to send actionable tasks into Apple Reminders.</string>
+  <key>NSRemindersFullAccessUsageDescription</key>
+  <string>Glimmer needs Reminders access to create reminders from your diaries, plans, and long-term ideas.</string>
+</dict>
+</plist>

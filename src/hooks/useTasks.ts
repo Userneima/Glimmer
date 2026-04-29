@@ -6,6 +6,8 @@ import { cloud } from '../utils/cloud';
 import { useAuth } from '../context/useAuth';
 import { showToast, getErrorMessage } from '../utils/toast';
 import { t } from '../i18n';
+import { remindersBridge } from '../utils/remindersBridge';
+import type { ExternalTaskLink } from '../types';
 
 export function useTasks() {
   const { user } = useAuth();
@@ -174,6 +176,8 @@ export function useTasks() {
       completedAt: null,
       order: maxOrder + 1,
       tags: opts?.tags || [],
+      externalLinks: opts?.externalLinks || [],
+      sourceContext: opts?.sourceContext || { kind: 'manual' },
     };
     setTasks(prev => [...prev, t]);
     syncTask(t);
@@ -185,6 +189,81 @@ export function useTasks() {
     const target = tasks.find(t => t.id === id);
     if (target) {
       syncTask({ ...target, ...updates });
+    }
+  }, [tasks, syncTask]);
+
+  const sendTaskToReminders = useCallback(async (id: string, taskOverride?: Task) => {
+    const target = taskOverride ?? tasks.find(t => t.id === id);
+    if (!target) return;
+
+    const setReminderLink = (link: ExternalTaskLink) => {
+      const externalLinks = [
+        ...(target.externalLinks || []).filter(linkItem => linkItem.provider !== 'apple-reminders'),
+        link,
+      ];
+      setTasks(prev => prev.map(t => (t.id === id ? { ...t, externalLinks } : t)));
+      syncTask({ ...target, externalLinks });
+    };
+
+    const capability = remindersBridge.getReminderCapability();
+    if (!capability.available) {
+      setReminderLink({
+        provider: 'apple-reminders',
+        externalId: '',
+        syncedAt: Date.now(),
+        status: 'failed',
+        lastError: capability.reason || t('Reminders unavailable'),
+      });
+      showToast(t('Reminders requires the macOS app'), 'info');
+      return;
+    }
+
+    try {
+      let status = await remindersBridge.getReminderAuthorizationStatus();
+      if (status === 'not-determined') {
+        status = await remindersBridge.requestReminderAccess();
+      }
+
+      if (status !== 'authorized') {
+        setReminderLink({
+          provider: 'apple-reminders',
+          externalId: '',
+          syncedAt: Date.now(),
+          status: 'failed',
+          lastError: t('Reminders permission denied'),
+        });
+        showToast(t('Reminders permission denied'), 'error');
+        return;
+      }
+
+      const result = await remindersBridge.createReminder({
+        title: target.title,
+        notes: target.notes,
+        dueAt: target.dueAt ?? target.endDate ?? null,
+        sourceTaskId: target.id,
+        sourceDiaryId: target.sourceContext?.diaryId ?? target.relatedDiaryId ?? null,
+        sourceIdeaId: target.sourceContext?.ideaId ?? null,
+      });
+
+      setReminderLink({
+        provider: 'apple-reminders',
+        externalId: result.externalId,
+        calendarId: result.calendarId,
+        calendarTitle: result.calendarTitle,
+        syncedAt: Date.now(),
+        status: 'linked',
+      });
+      showToast(t('Sent to Reminders'));
+    } catch (err) {
+      const message = getErrorMessage(err) || t('Failed to send to Reminders');
+      setReminderLink({
+        provider: 'apple-reminders',
+        externalId: '',
+        syncedAt: Date.now(),
+        status: 'failed',
+        lastError: message,
+      });
+      showToast(message, 'error');
     }
   }, [tasks, syncTask]);
 
@@ -545,6 +624,7 @@ export function useTasks() {
     filterTasksBySearch,
     addTask,
     updateTask,
+    sendTaskToReminders,
     deleteTask,
     toggleComplete,
     getTasksForDate,

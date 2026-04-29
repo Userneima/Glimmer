@@ -40,3 +40,30 @@ scripts/                      Local automation and launcher scripts
 docs/                         Documentation if added later
 tests/                        Tests if added later
 ```
+
+---
+
+# Release Boundaries
+
+- Web deployment and desktop app packaging are separate release paths.
+- Vercel is Web-only and must use `npm run build:web`.
+- Desktop packaging is Tauri-only and must use `npm run desktop:build`.
+- Do not mix Web fixes and desktop packaging artifacts in the same release unless both paths are intentionally being changed and validated.
+- The detailed boundary rules live in `docs/RELEASE_BOUNDARIES.md`.
+
+---
+
+# UI / Window Rules
+
+- Any new modal, drawer, floating panel, or major window redesign must be evaluated against the whole product, not only in isolation.
+- Always check three things before finalizing a window-style UI change:
+  - size relative to the surrounding product
+  - visual style consistency with the existing product
+  - whether the window is stealing too much attention from the main workspace
+- Do not optimize a dialog as if it were an independent landing page or visual experiment.
+- Prefer matching the current Glimmer language first:
+  - light glass surfaces
+  - restrained blue accent usage
+  - soft borders and low-contrast shadows
+  - calm hierarchy over dramatic contrast
+- If a window looks good on its own but feels too large, too dark, too saturated, or too stylistically independent compared with the rest of the app, it is considered wrong and must be revised.

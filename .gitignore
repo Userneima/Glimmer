@@ -35,3 +35,11 @@ dist-ssr
 coverage/
 build/
 .vite
+src-tauri/target/
+
+# Desktop app build artifacts
+*.app/
+*.dmg
+*.pkg
+*.msi
+*.exe
