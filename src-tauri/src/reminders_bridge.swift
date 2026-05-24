@@ -22,6 +22,11 @@ struct ReminderFetchOptions: Decodable {
   let includeCompleted: Bool?
 }
 
+struct ReminderCompletionPayload: Decodable {
+  let externalId: String
+  let completed: Bool
+}
+
 struct AppleReminder: Encodable {
   let externalId: String
   let title: String
@@ -40,9 +45,17 @@ struct BridgeResponse: Encodable {
   let error: String?
 }
 
-func printResponse(_ response: BridgeResponse) {
+func encodedResponse(_ response: BridgeResponse) -> Data {
   let data = try! JSONEncoder().encode(response)
+  return data
+}
+
+func printResponse(_ response: BridgeResponse, newline: Bool = false) {
+  let data = encodedResponse(response)
   FileHandle.standardOutput.write(data)
+  if newline {
+    FileHandle.standardOutput.write(Data([0x0A]))
+  }
 }
 
 func authorizationStatus() -> String {
@@ -135,13 +148,7 @@ func reminderDisplayDate(_ reminder: EKReminder) -> Date? {
   return reminder.dueDateComponents?.date ?? reminder.startDateComponents?.date
 }
 
-func fetchReminders(store: EKEventStore, options: ReminderFetchOptions) throws -> [AppleReminder] {
-  guard authorizationStatus() == "authorized" else {
-    throw NSError(domain: "GlimmerReminders", code: 1, userInfo: [NSLocalizedDescriptionKey: "Reminders permission is not authorized."])
-  }
-
-  let calendars = store.calendars(for: .reminder)
-  let predicate = store.predicateForReminders(in: calendars)
+func fetchMatchingReminders(store: EKEventStore, predicate: NSPredicate) -> [EKReminder] {
   let semaphore = DispatchSemaphore(value: 0)
   var fetched: [EKReminder] = []
 
@@ -150,14 +157,37 @@ func fetchReminders(store: EKEventStore, options: ReminderFetchOptions) throws -
     semaphore.signal()
   }
 
-  _ = semaphore.wait(timeout: .now() + 60)
+  _ = semaphore.wait(timeout: .now() + 15)
+  return fetched
+}
 
+func fetchReminders(store: EKEventStore, options: ReminderFetchOptions) throws -> [AppleReminder] {
+  guard authorizationStatus() == "authorized" else {
+    throw NSError(domain: "GlimmerReminders", code: 1, userInfo: [NSLocalizedDescriptionKey: "Reminders permission is not authorized."])
+  }
+
+  let calendars = store.calendars(for: .reminder)
   let now = Date()
   let calendar = Calendar.current
   let startOfToday = calendar.startOfDay(for: now)
   let daysAhead = options.daysAhead ?? 30
   let endDate = calendar.date(byAdding: .day, value: daysAhead, to: startOfToday) ?? now
   let includeCompleted = options.includeCompleted ?? false
+  let scope = options.scope ?? "all-open"
+
+  let predicate: NSPredicate
+  if includeCompleted {
+    predicate = store.predicateForReminders(in: calendars)
+  } else if scope == "today" {
+    let endOfToday = calendar.date(byAdding: .day, value: 1, to: startOfToday) ?? now
+    predicate = store.predicateForIncompleteReminders(withDueDateStarting: startOfToday, ending: endOfToday, calendars: calendars)
+  } else if scope == "upcoming" {
+    predicate = store.predicateForIncompleteReminders(withDueDateStarting: startOfToday, ending: endDate, calendars: calendars)
+  } else {
+    predicate = store.predicateForIncompleteReminders(withDueDateStarting: nil, ending: nil, calendars: calendars)
+  }
+
+  let fetched = fetchMatchingReminders(store: store, predicate: predicate)
 
   let mapped = fetched
     .filter { reminder in
@@ -166,14 +196,18 @@ func fetchReminders(store: EKEventStore, options: ReminderFetchOptions) throws -
       }
 
       guard let dueDate = reminderDisplayDate(reminder) else {
-        return options.scope == "all-open"
+        return scope == "all-open"
       }
 
-      if options.scope == "today" {
+      if scope == "today" {
         return calendar.isDate(dueDate, inSameDayAs: now)
       }
 
-      return dueDate >= startOfToday && dueDate <= endDate
+      if scope == "upcoming" {
+        return dueDate >= startOfToday && dueDate <= endDate
+      }
+
+      return true
     }
     .sorted { left, right in
       let leftDate = reminderDisplayDate(left) ?? Date.distantFuture
@@ -196,13 +230,18 @@ func fetchReminders(store: EKEventStore, options: ReminderFetchOptions) throws -
       )
     }
 
-  if options.scope == "all-open" {
+  if scope == "all-open" {
     return Array(mapped.prefix(80))
   }
 
-  let undatedOpen = fetched
+  let undatedOpen = includeCompleted
+    ? []
+    : fetchMatchingReminders(
+        store: store,
+        predicate: store.predicateForIncompleteReminders(withDueDateStarting: nil, ending: nil, calendars: calendars)
+      )
     .filter { reminder in
-      !reminder.isCompleted && reminderDisplayDate(reminder) == nil
+      reminderDisplayDate(reminder) == nil
     }
     .sorted { left, right in
       left.title.localizedCompare(right.title) == .orderedAscending
@@ -224,30 +263,80 @@ func fetchReminders(store: EKEventStore, options: ReminderFetchOptions) throws -
   return mapped + undatedOpen
 }
 
+func setReminderCompleted(store: EKEventStore, payload: ReminderCompletionPayload) throws {
+  guard authorizationStatus() == "authorized" else {
+    throw NSError(domain: "GlimmerReminders", code: 1, userInfo: [NSLocalizedDescriptionKey: "Reminders permission is not authorized."])
+  }
+
+  guard let reminder = store.calendarItem(withIdentifier: payload.externalId) as? EKReminder else {
+    throw NSError(domain: "GlimmerReminders", code: 3, userInfo: [NSLocalizedDescriptionKey: "Reminder was not found."])
+  }
+
+  reminder.isCompleted = payload.completed
+  reminder.completionDate = payload.completed ? Date() : nil
+  try store.save(reminder, commit: true)
+}
+
+func responseFor(command: String, payloadData: Data, store: EKEventStore) -> BridgeResponse {
+  do {
+    switch command {
+    case "status":
+      return BridgeResponse(status: authorizationStatus(), result: nil, reminders: nil, error: nil)
+    case "request_access":
+      return BridgeResponse(status: requestAccess(store: store), result: nil, reminders: nil, error: nil)
+    case "create":
+      let payload = try JSONDecoder().decode(ReminderCreatePayload.self, from: payloadData)
+      let result = try createReminder(store: store, payload: payload)
+      return BridgeResponse(status: "authorized", result: result, reminders: nil, error: nil)
+    case "fetch":
+      let options = payloadData.isEmpty
+        ? ReminderFetchOptions(scope: "upcoming", daysAhead: 30, includeCompleted: false)
+        : try JSONDecoder().decode(ReminderFetchOptions.self, from: payloadData)
+      let reminders = try fetchReminders(store: store, options: options)
+      return BridgeResponse(status: "authorized", result: nil, reminders: reminders, error: nil)
+    case "set_completed":
+      let payload = try JSONDecoder().decode(ReminderCompletionPayload.self, from: payloadData)
+      try setReminderCompleted(store: store, payload: payload)
+      return BridgeResponse(status: "authorized", result: nil, reminders: nil, error: nil)
+    default:
+      return BridgeResponse(status: "unsupported", result: nil, reminders: nil, error: "Unsupported Reminders bridge command.")
+    }
+  } catch {
+    return BridgeResponse(status: authorizationStatus(), result: nil, reminders: nil, error: error.localizedDescription)
+  }
+}
+
+func payloadData(from object: Any?) -> Data {
+  guard let object = object, !(object is NSNull) else {
+    return Data()
+  }
+  return (try? JSONSerialization.data(withJSONObject: object)) ?? Data()
+}
+
+func runServer(store: EKEventStore) {
+  while let line = readLine(strippingNewline: true) {
+    guard let data = line.data(using: .utf8) else {
+      printResponse(BridgeResponse(status: authorizationStatus(), result: nil, reminders: nil, error: "Invalid server request."), newline: true)
+      continue
+    }
+
+    do {
+      let object = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+      let command = object?["command"] as? String ?? ""
+      let payload = payloadData(from: object?["payload"])
+      printResponse(responseFor(command: command, payloadData: payload, store: store), newline: true)
+    } catch {
+      printResponse(BridgeResponse(status: authorizationStatus(), result: nil, reminders: nil, error: error.localizedDescription), newline: true)
+    }
+  }
+}
+
 let command = CommandLine.arguments.dropFirst().first ?? ""
 let store = EKEventStore()
 
-do {
-  switch command {
-  case "status":
-    printResponse(BridgeResponse(status: authorizationStatus(), result: nil, reminders: nil, error: nil))
-  case "request_access":
-    printResponse(BridgeResponse(status: requestAccess(store: store), result: nil, reminders: nil, error: nil))
-  case "create":
-    let input = FileHandle.standardInput.readDataToEndOfFile()
-    let payload = try JSONDecoder().decode(ReminderCreatePayload.self, from: input)
-    let result = try createReminder(store: store, payload: payload)
-    printResponse(BridgeResponse(status: "authorized", result: result, reminders: nil, error: nil))
-  case "fetch":
-    let input = FileHandle.standardInput.readDataToEndOfFile()
-    let options = input.isEmpty
-      ? ReminderFetchOptions(scope: "upcoming", daysAhead: 30, includeCompleted: false)
-      : try JSONDecoder().decode(ReminderFetchOptions.self, from: input)
-    let reminders = try fetchReminders(store: store, options: options)
-    printResponse(BridgeResponse(status: "authorized", result: nil, reminders: reminders, error: nil))
-  default:
-    printResponse(BridgeResponse(status: "unsupported", result: nil, reminders: nil, error: "Unsupported Reminders bridge command."))
-  }
-} catch {
-  printResponse(BridgeResponse(status: authorizationStatus(), result: nil, reminders: nil, error: error.localizedDescription))
+if command == "server" {
+  runServer(store: store)
+} else {
+  let input = FileHandle.standardInput.readDataToEndOfFile()
+  printResponse(responseFor(command: command, payloadData: input, store: store))
 }

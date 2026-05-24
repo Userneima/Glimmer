@@ -12,6 +12,10 @@ import { AuthContext, type AuthContextValue } from './authContextBase';
 import { storage, setCurrentUserId } from '../utils/storage';
 import { cloud } from '../utils/cloud';
 import { allowSelfSignUp, isInternalEmailAllowed } from '../utils/auth';
+import { setSyncQueueUserId } from '../utils/syncQueue';
+
+const hasAiSettingsValue = (settings: ReturnType<typeof storage.getAiSettings>) =>
+  Boolean(settings.deepseekKey || settings.geminiApiKey || settings.deepseekBaseUrl || settings.deepseekModel);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -52,8 +56,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (data.session?.user?.id) {
           storage.copyAnonymousDataToUserIfEmpty(data.session.user.id);
           setCurrentUserId(data.session.user.id);
+          setSyncQueueUserId(data.session.user.id);
         } else {
           setCurrentUserId(null);
+          setSyncQueueUserId(null);
         }
         setSession(data.session ?? null);
         setUser(data.session?.user ?? null);
@@ -77,8 +83,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (nextSession?.user?.id) {
         storage.copyAnonymousDataToUserIfEmpty(nextSession.user.id);
         setCurrentUserId(nextSession.user.id);
+        setSyncQueueUserId(nextSession.user.id);
       } else {
         setCurrentUserId(null);
+        setSyncQueueUserId(null);
       }
       setSession(nextSession);
       setUser(nextSession?.user ?? null);
@@ -96,6 +104,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       storage.copyAnonymousDataToUserIfEmpty(user.id);
     }
     setCurrentUserId(user?.id ?? null);
+    setSyncQueueUserId(user?.id ?? null);
   }, [user?.id]);
 
   useEffect(() => {
@@ -105,8 +114,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (!user?.id || !cloudAvailable) return;
       try {
         const remoteSettings = await cloud.fetchAiSettings(user.id);
-        if (!active || !remoteSettings) return;
-        storage.saveAiSettings(remoteSettings);
+        if (!active) return;
+        if (remoteSettings) {
+          storage.saveAiSettings(remoteSettings);
+          return;
+        }
+
+        const localSettings = storage.getAiSettings();
+        if (hasAiSettingsValue(localSettings)) {
+          void cloud.upsertAiSettings(user.id, localSettings).catch((err) => {
+            console.warn('Failed to backfill user AI settings', err);
+          });
+        }
       } catch (err) {
         console.warn('Failed to fetch user AI settings', err);
       }
@@ -184,7 +203,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     signIn,
     signUp,
     signOut,
-  }), [user, session, loading, error, signIn, signUp, signOut]);
+  }), [user, session, loading, error, cloudAvailable, signIn, signUp, signOut]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

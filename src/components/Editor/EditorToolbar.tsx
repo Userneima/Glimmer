@@ -16,6 +16,7 @@ import {
   Zap,
   Indent,
   Outdent,
+  FileText,
 } from 'lucide-react';
 
 import { t } from '../../i18n';
@@ -23,6 +24,8 @@ import { t } from '../../i18n';
 interface EditorToolbarProps {
   editor: Editor;
   onAnalyze?: () => void;
+  onOpenTaskDocument?: () => void;
+  showTaskDocumentButton?: boolean;
 }
 
 type ToolbarButtonProps = {
@@ -59,7 +62,17 @@ const ToolbarButton: React.FC<ToolbarButtonProps> = ({ onClick, isActive, childr
   </button>
 );
 
-export const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor, onAnalyze }) => {
+export const EditorToolbar: React.FC<EditorToolbarProps> = ({
+  editor,
+  onAnalyze,
+  onOpenTaskDocument,
+  showTaskDocumentButton = false,
+}) => {
+  const isInTaskItem = useEditorState({
+    editor,
+    selector: ({ editor: currentEditor }) => currentEditor.isActive('taskItem'),
+  });
+
   const maxUsedHeading = useEditorState({
     editor,
     selector: ({ editor: currentEditor }) => {
@@ -176,7 +189,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor, onAnalyze 
           const { $from } = state.selection;
           
           // Find the start position of the current paragraph/block node
-          let paragraphStart = $from.start($from.depth);
+          const paragraphStart = $from.start($from.depth);
           
           // Skip inserting spaces at the very beginning of the document
           // unless there's already content after it
@@ -200,7 +213,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor, onAnalyze 
           const { $from } = state.selection;
           
           // Find the start position of the current paragraph/block node
-          let paragraphStart = $from.start($from.depth);
+          const paragraphStart = $from.start($from.depth);
           
           // Check if there are spaces to remove
           if (paragraphStart < state.doc.nodeSize - 2) {
@@ -241,6 +254,18 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor, onAnalyze 
       >
         <Minus size={18} strokeWidth={1.75} />
       </ToolbarButton>
+
+      {showTaskDocumentButton && isInTaskItem && onOpenTaskDocument && (
+        <button
+          type="button"
+          onClick={onOpenTaskDocument}
+          title="打开任务文档"
+          className="ml-2 inline-flex h-10 items-center justify-center gap-2 rounded-apple-lg border border-sky-200 bg-sky-50 px-3 text-sm font-semibold text-sky-600 shadow-sm transition-all duration-200 hover:border-sky-300 hover:bg-sky-100 active:scale-95"
+        >
+          <FileText size={16} strokeWidth={1.9} />
+          打开任务文档
+        </button>
+      )}
 
       {onAnalyze && (
         <ToolbarButton

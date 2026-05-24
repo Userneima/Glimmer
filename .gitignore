@@ -43,3 +43,6 @@ src-tauri/target/
 *.pkg
 *.msi
 *.exe
+
+# Tauri updater release manifest generated from signed artifacts
+src-tauri/target/release/bundle/**/latest.json

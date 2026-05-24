@@ -43,6 +43,15 @@ tests/                        Tests if added later
 
 ---
 
+# Context Navigation
+
+- Before opening large source files, read `docs/ai-handoff/CODEBASE_MAP.md` to locate the smallest relevant entry.
+- When working inside a subdirectory, read the nearest `AGENTS.md` in that directory first.
+- Do not default-read generated or dependency folders: `node_modules/`, `dist/`, `src-tauri/target/`, `src-tauri/gen/schemas/`.
+- Prefer `rg` to locate handlers/functions before opening high-context files such as `AppLayout.tsx`, `storage.ts`, `cloud.ts`, and `useTasks.ts`.
+
+---
+
 # Release Boundaries
 
 - Web deployment and desktop app packaging are separate release paths.

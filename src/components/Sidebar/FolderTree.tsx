@@ -13,6 +13,7 @@ interface FolderTreeProps {
   onUpdateFolder: (id: string, name: string) => void;
   onDeleteFolder: (id: string) => void;
   onMoveDiary: (diaryId: string, folderId: string | null) => void;
+  canMoveDiary?: (diaryId: string) => boolean;
   selectedFolderId: string | null;
   onSelectFolder: (id: string | null) => void;
 }
@@ -23,6 +24,7 @@ export const FolderTree: React.FC<FolderTreeProps> = ({
   onUpdateFolder,
   onDeleteFolder,
   onMoveDiary,
+  canMoveDiary,
   selectedFolderId,
   onSelectFolder,
 }) => {
@@ -43,6 +45,10 @@ export const FolderTree: React.FC<FolderTreeProps> = ({
     e.preventDefault();
     const diaryId = getDraggedDiaryId(e);
     if (!diaryId) {
+      setDragOverTarget(null);
+      return;
+    }
+    if (canMoveDiary && !canMoveDiary(diaryId)) {
       setDragOverTarget(null);
       return;
     }

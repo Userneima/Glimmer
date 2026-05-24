@@ -43,6 +43,14 @@ npm run desktop:dev
 npm run desktop:build
 ```
 
+桌面自动更新已经接入 Tauri updater。发布可自动更新的新版本时，还需要生成 updater 清单：
+
+```bash
+npm run desktop:manifest
+```
+
+具体 release 步骤见 `docs/DESKTOP_UPDATES.md`。
+
 桌面快捷方式安装脚本是：
 
 ```bash

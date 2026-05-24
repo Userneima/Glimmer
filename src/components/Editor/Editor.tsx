@@ -1,6 +1,8 @@
-import React, { useEffect, useMemo, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
-import { AllSelection, TextSelection } from 'prosemirror-state';
+import { Extension } from '@tiptap/core';
+import type { Node as ProseMirrorNode } from 'prosemirror-model';
+import { AllSelection, Plugin, TextSelection } from 'prosemirror-state';
 import { CellSelection, TableMap, cellAround, findTable, isInTable, selectedRect } from 'prosemirror-tables';
 import StarterKit from '@tiptap/starter-kit';
 import { Underline } from '@tiptap/extension-underline';
@@ -19,6 +21,102 @@ import { Color } from '@tiptap/extension-color';
 import { EditorToolbar } from './EditorToolbar';
 import { TextBubbleMenu } from './TextBubbleMenu';
 import { TableBubbleMenu } from './TableBubbleMenu';
+import { LONG_TERM_MASTER_ID } from '../../types';
+import { isLikelyMarkdown, markdownToHtml } from '../../utils/markdown';
+
+const CascadeTaskCompletion = Extension.create({
+  name: 'cascadeTaskCompletion',
+
+  addProseMirrorPlugins() {
+    return [
+      new Plugin({
+        appendTransaction: (transactions, oldState, newState) => {
+          const userChangedTaskState = transactions.some((transaction) => {
+            if (!transaction.docChanged || transaction.getMeta('preventUpdate')) {
+              return false;
+            }
+
+            return transaction.steps.some((step) => {
+              const json = step.toJSON() as {
+                stepType?: string;
+                attr?: string;
+                value?: unknown;
+                newAttrs?: Record<string, unknown>;
+              };
+              return (
+                (json.stepType === 'attr' && json.attr === 'checked' && json.value === true) ||
+                json.newAttrs?.checked === true
+              );
+            });
+          });
+
+          if (!userChangedTaskState) {
+            return null;
+          }
+
+          let transaction = newState.tr;
+          let hasNestedChanges = false;
+
+          newState.doc.descendants((node, position) => {
+            if (node.type.name !== 'taskItem' || node.attrs.checked !== true) {
+              return;
+            }
+
+            if (position > oldState.doc.content.size) {
+              return false;
+            }
+
+            let oldNode = null;
+            try {
+              oldNode = oldState.doc.nodeAt(position);
+            } catch {
+              return false;
+            }
+
+            const becameChecked =
+              oldNode?.type.name === 'taskItem' &&
+              oldNode.attrs.checked !== true &&
+              node.attrs.checked === true;
+
+            if (!becameChecked) {
+              return;
+            }
+
+            node.descendants((childNode, relativePosition) => {
+              if (childNode.type.name !== 'taskItem' || childNode.attrs.checked === true) {
+                return;
+              }
+
+              const childPosition = position + 1 + relativePosition;
+              if (childPosition > newState.doc.content.size) {
+                return;
+              }
+
+              transaction = transaction.setNodeMarkup(childPosition, undefined, {
+                ...childNode.attrs,
+                checked: true,
+              });
+              hasNestedChanges = true;
+            });
+          });
+
+          return hasNestedChanges ? transaction : null;
+        },
+      }),
+    ];
+  },
+});
+
+const getTaskItemTitle = (node: ProseMirrorNode) => {
+  let title = '';
+  node.forEach((childNode) => {
+    if (!title && childNode.isTextblock) {
+      title = childNode.textContent.replace(/\s+/g, ' ').trim();
+    }
+  });
+
+  return title || node.textContent.replace(/\s+/g, ' ').trim();
+};
 
 interface EditorProps {
   content: string;
@@ -28,6 +126,8 @@ interface EditorProps {
   onAnalyze?: () => void;
   diaryId?: string;
   highlightRange?: { from: number; to: number };
+  onEnsureTaskDocument?: (taskTitle: string, taskDocumentId?: string | null) => string | null;
+  onNavigateTaskDocument?: (taskDocumentId: string) => void;
 }
 
 export const Editor: React.FC<EditorProps> = ({
@@ -36,7 +136,10 @@ export const Editor: React.FC<EditorProps> = ({
   editable = true,
   contentRightPanel,
   onAnalyze,
+  diaryId,
   highlightRange,
+  onEnsureTaskDocument,
+  onNavigateTaskDocument,
 }) => {
   const CustomTableCell = useMemo(
     () =>
@@ -79,6 +182,26 @@ export const Editor: React.FC<EditorProps> = ({
               parseHTML: (element) => element.style.verticalAlign || null,
               renderHTML: (attributes) =>
                 attributes.verticalAlign ? { style: `vertical-align: ${attributes.verticalAlign};` } : {},
+            },
+          };
+        },
+      }),
+    []
+  );
+
+  const TaskItemWithDocument = useMemo(
+    () =>
+      TaskItem.extend({
+        addAttributes() {
+          return {
+            ...this.parent?.(),
+            taskDocumentId: {
+              default: null,
+              parseHTML: (element) => element.getAttribute('data-task-doc-id'),
+              renderHTML: (attributes) =>
+                attributes.taskDocumentId
+                  ? { 'data-task-doc-id': attributes.taskDocumentId }
+                  : {},
             },
           };
         },
@@ -133,15 +256,16 @@ export const Editor: React.FC<EditorProps> = ({
     CustomTableCell,
     CustomTableHeader,
     TaskList,
-    TaskItem.configure({
+    TaskItemWithDocument.configure({
       nested: true,
     }),
+    CascadeTaskCompletion,
     Highlight.configure({
       multicolor: true,
     }),
     TextStyle,
     Color,
-  ], [CustomTableCell, CustomTableHeader]);
+  ], [CustomTableCell, CustomTableHeader, TaskItemWithDocument]);
 
   const editor = useEditor({
     extensions,
@@ -152,7 +276,21 @@ export const Editor: React.FC<EditorProps> = ({
     },
     editorProps: {
       attributes: {
-        class: 'prose prose-sm sm:prose lg:prose-lg xl:prose-xl focus:outline-none max-w-none',
+        class: `prose prose-sm sm:prose lg:prose-lg xl:prose-xl focus:outline-none max-w-none ${
+          diaryId === LONG_TERM_MASTER_ID ? 'task-document-master' : ''
+        }`,
+      },
+      handlePaste: (_view, event) => {
+        const plainText = event.clipboardData?.getData('text/plain') ?? '';
+        const htmlText = event.clipboardData?.getData('text/html') ?? '';
+
+        if (!plainText.trim() || htmlText.trim() || !isLikelyMarkdown(plainText)) {
+          return false;
+        }
+
+        event.preventDefault();
+        editor?.chain().focus().insertContent(markdownToHtml(plainText)).run();
+        return true;
       },
       handleKeyDown: (view, event) => {
         if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'a') {
@@ -268,34 +406,91 @@ export const Editor: React.FC<EditorProps> = ({
         return false;
       },
       // Enable text selection on long press
-      handleDOMEvents: {
-        // Allow all default behavior for text selection
-      },
+      handleDOMEvents: {},
     },
   });
+
+  const openActiveTaskDocument = useCallback(() => {
+    if (
+      diaryId !== LONG_TERM_MASTER_ID ||
+      !editor ||
+      !onEnsureTaskDocument ||
+      !onNavigateTaskDocument
+    ) {
+      return;
+    }
+
+    const { state, dispatch } = editor.view;
+    const $position = state.selection.$from;
+
+    for (let depth = $position.depth; depth > 0; depth -= 1) {
+      const node = $position.node(depth);
+      if (node.type.name !== 'taskItem') continue;
+
+      const taskTitle = getTaskItemTitle(node);
+      if (!taskTitle) return;
+
+      const existingDocumentId =
+        typeof node.attrs.taskDocumentId === 'string' ? node.attrs.taskDocumentId : null;
+      const taskDocumentId = onEnsureTaskDocument(taskTitle, existingDocumentId);
+      if (!taskDocumentId) return;
+
+      if (!existingDocumentId) {
+        const taskPosition = $position.before(depth);
+        dispatch(
+          state.tr.setNodeMarkup(taskPosition, undefined, {
+            ...node.attrs,
+            taskDocumentId,
+          })
+        );
+      }
+
+      window.setTimeout(() => onNavigateTaskDocument(taskDocumentId), 0);
+      return;
+    }
+  }, [diaryId, editor, onEnsureTaskDocument, onNavigateTaskDocument]);
 
   const editorContentRef = useRef<HTMLDivElement>(null);
 
   // Highlight range effect
   useEffect(() => {
     if (editor && highlightRange) {
-      // Scroll to the position
-      editor.commands.setTextSelection(highlightRange.from);
-      
-      // Add highlight mark to the range
-      editor.chain()
-        .focus()
-        .setTextSelection(highlightRange)
-        .setHighlight({ color: '#fef08a' }) // Yellow highlight
-        .run();
-      
-      // Scroll into view
-      setTimeout(() => {
-        const dom = editor.view.domAtPos(highlightRange.from);
-        if (dom.node && dom.node instanceof HTMLElement) {
-          dom.node.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-      }, 100);
+      const maxPosition = editor.state.doc.content.size;
+      if (
+        highlightRange.from < 0 ||
+        highlightRange.to < highlightRange.from ||
+        highlightRange.from > maxPosition
+      ) {
+        return;
+      }
+
+      const safeRange = {
+        from: highlightRange.from,
+        to: Math.min(highlightRange.to, maxPosition),
+      };
+
+      try {
+        editor.commands.setTextSelection(safeRange.from);
+
+        editor.chain()
+          .focus()
+          .setTextSelection(safeRange)
+          .setHighlight({ color: '#fef08a' })
+          .run();
+
+        window.setTimeout(() => {
+          try {
+            const dom = editor.view.domAtPos(safeRange.from);
+            if (dom.node && dom.node instanceof HTMLElement) {
+              dom.node.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+          } catch (err) {
+            console.warn('Failed to scroll highlighted diary range', err);
+          }
+        }, 100);
+      } catch (err) {
+        console.warn('Failed to apply diary highlight range', err);
+      }
     }
   }, [editor, highlightRange]);
 
@@ -318,7 +513,14 @@ export const Editor: React.FC<EditorProps> = ({
   return (
     /* 编辑器主容器 - 毛玻璃风 */
     <div className="flex flex-col h-full" style={{ backgroundColor: 'rgba(255, 255, 255, 0.75)' }} ref={editorContentRef}>
-      {editable && <EditorToolbar editor={editor} onAnalyze={onAnalyze} />}
+      {editable && (
+        <EditorToolbar
+          editor={editor}
+          onAnalyze={onAnalyze}
+          onOpenTaskDocument={openActiveTaskDocument}
+          showTaskDocumentButton={diaryId === LONG_TERM_MASTER_ID}
+        />
+      )}
       {editable && <TextBubbleMenu editor={editor} />}
       {editable && <TableBubbleMenu editor={editor} />}
       <div className="flex-1 overflow-hidden flex">

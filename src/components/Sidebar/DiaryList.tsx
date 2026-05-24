@@ -1,13 +1,27 @@
 import React, { useMemo, useState } from 'react';
 import { Plus, Search, Trash2, Calendar, Folder, Menu, FileText } from 'lucide-react';
-import { LONG_TERM_MASTER_ID, TEMPLATE_DIARY_ID } from '../../types';
+import { TEMPLATE_DIARY_ID } from '../../types';
 import type { Diary, Folder as DiaryFolder } from '../../types';
 import { formatDate, formatRelativeTime } from '../../utils/date';
 import { getDiaryWordCount } from '../../utils/text';
+import { isLongTermMasterDiary } from '../../utils/diarySystem';
 import { Modal } from '../UI/Modal';
 import { Button } from '../UI/Button';
 import { t } from '../../i18n';
 import { showToast } from '../../utils/toast';
+
+const DIARY_SORT_MODE_KEY = 'diary-sort-mode';
+const DIARY_SORT_MODE_TOUCHED_KEY = 'diary-sort-mode-touched';
+type DiarySortMode = 'updated-desc' | 'updated-asc' | 'created-desc' | 'created-asc' | 'title-asc' | 'title-desc';
+const DIARY_SORT_MODES: DiarySortMode[] = [
+  'updated-desc',
+  'updated-asc',
+  'created-desc',
+  'created-asc',
+  'title-asc',
+  'title-desc',
+];
+const DEFAULT_DIARY_SORT_MODE: DiarySortMode = 'created-desc';
 
 interface DiaryListProps {
   diaries: Diary[];
@@ -21,6 +35,7 @@ interface DiaryListProps {
   onSearch: (query: string) => void;
   selectedFolderId: string | null;
   folders: DiaryFolder[];
+  unreadAutoAnalysisIds?: ReadonlySet<string>;
 }
 
 export const DiaryList: React.FC<DiaryListProps> = ({
@@ -35,21 +50,22 @@ export const DiaryList: React.FC<DiaryListProps> = ({
   onSearch,
   selectedFolderId,
   folders,
+  unreadAutoAnalysisIds,
 }) => {
-  const [sortMode, setSortMode] = useState<
-    'updated-desc' | 'updated-asc' | 'created-desc' | 'created-asc' | 'title-asc' | 'title-desc'
-  >(() => {
-    const saved = localStorage.getItem('diary-sort-mode');
-    if (saved && ['updated-desc', 'updated-asc', 'created-desc', 'created-asc', 'title-asc', 'title-desc'].includes(saved)) {
-      return saved as 'updated-desc' | 'updated-asc' | 'created-desc' | 'created-asc' | 'title-asc' | 'title-desc';
+  const [sortMode, setSortMode] = useState<DiarySortMode>(() => {
+    const saved = localStorage.getItem(DIARY_SORT_MODE_KEY);
+    const userTouchedSort = localStorage.getItem(DIARY_SORT_MODE_TOUCHED_KEY) === 'true';
+    if (saved && DIARY_SORT_MODES.includes(saved as DiarySortMode)) {
+      return userTouchedSort ? (saved as DiarySortMode) : DEFAULT_DIARY_SORT_MODE;
     }
-    return 'updated-desc';
+    return DEFAULT_DIARY_SORT_MODE;
   });
 
   // 持久化排序模式
   const handleSortModeChange = (newMode: typeof sortMode) => {
     setSortMode(newMode);
-    localStorage.setItem('diary-sort-mode', newMode);
+    localStorage.setItem(DIARY_SORT_MODE_KEY, newMode);
+    localStorage.setItem(DIARY_SORT_MODE_TOUCHED_KEY, 'true');
   };
 
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -73,16 +89,18 @@ export const DiaryList: React.FC<DiaryListProps> = ({
     return colors[index % colors.length];
   };
 
-  const filteredDiaries = diaries.filter(
-    diary =>
+  const filteredDiaries = diaries.filter((diary) => {
+    const isLongTermMaster = isLongTermMasterDiary(diary);
+    return (
       diary.id !== TEMPLATE_DIARY_ID &&
-      (diary.id === LONG_TERM_MASTER_ID || selectedFolderId === null || diary.folderId === selectedFolderId)
-  );
+      (isLongTermMaster || selectedFolderId === null || diary.folderId === selectedFolderId)
+    );
+  });
 
   const sortedDiaries = useMemo(() => {
     const normalizedTitle = (title: string) => (title || '').trim().toLocaleLowerCase();
-    const master = filteredDiaries.find((d) => d.id === LONG_TERM_MASTER_ID);
-    const others = filteredDiaries.filter((d) => d.id !== LONG_TERM_MASTER_ID);
+    const master = filteredDiaries.find((d) => isLongTermMasterDiary(d));
+    const others = filteredDiaries.filter((d) => !isLongTermMasterDiary(d));
     const list = [...others];
 
     const sortedOthers = list.sort((a, b) => {
@@ -269,41 +287,63 @@ export const DiaryList: React.FC<DiaryListProps> = ({
             )}
           </div>
         ) : (
-            sortedDiaries.map(diary => (
+            sortedDiaries.map(diary => {
+            const isLongTermMaster = isLongTermMasterDiary(diary);
+            return (
             /* 日记卡片 - 轻量材质，Hover时显示柔和阴影 */
             <div
               key={diary.id}
-              draggable
-              className={`p-4 cursor-pointer transition-colors duration-200 group relative mx-1 my-1.5 rounded-xl border border-slate-200/60 ${
+              draggable={!isLongTermMaster}
+              className={`p-4 cursor-pointer transition-colors duration-200 group relative mx-1 my-1.5 rounded-xl border ${
                 currentDiaryId === diary.id
                   ? 'shadow-md'
                   : 'hover:shadow-sm'
-              }`}
+              } ${isLongTermMaster ? 'border-sky-200/80 bg-gradient-to-br from-sky-50/90 via-white/90 to-white/80' : 'border-slate-200/60'}`}
               style={{
-                backgroundColor: currentDiaryId === diary.id ? 'rgba(14, 165, 233, 0.12)' : 'rgba(255, 255, 255, 0.85)',
-                borderColor: currentDiaryId === diary.id ? 'var(--aurora-accent)' : 'rgba(226, 232, 240, 0.6)'
+                backgroundColor: isLongTermMaster
+                  ? undefined
+                  : currentDiaryId === diary.id ? 'rgba(14, 165, 233, 0.12)' : 'rgba(255, 255, 255, 0.85)',
+                borderColor: currentDiaryId === diary.id ? 'var(--aurora-accent)' : undefined
               }}
               onMouseEnter={(e) => {
-                if (currentDiaryId !== diary.id) {
+                if (!isLongTermMaster && currentDiaryId !== diary.id) {
                   e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.7)';
                 }
               }}
               onMouseLeave={(e) => {
-                if (currentDiaryId !== diary.id) {
+                if (!isLongTermMaster && currentDiaryId !== diary.id) {
                   e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.5)';
                 }
               }}
               onClick={() => onSelectDiary(diary.id)}
               onDragStart={(e) => {
+                if (isLongTermMaster) {
+                  e.preventDefault();
+                  return;
+                }
                 e.dataTransfer.effectAllowed = 'move';
                 e.dataTransfer.setData('application/x-diary-id', diary.id);
               }}
             >
+              {unreadAutoAnalysisIds?.has(diary.id) && (
+                <span
+                  className="absolute right-3 top-3 h-2.5 w-2.5 rounded-full bg-red-500 shadow-[0_0_0_4px_rgba(239,68,68,0.12)]"
+                  title={t('New AI analysis ready')}
+                  aria-label={t('New AI analysis ready')}
+                />
+              )}
               <div className="flex flex-col">
                 <div className="flex items-center justify-between mb-1.5">
                   <h3 className="font-semibold truncate tracking-tight flex-1" style={{ color: 'var(--aurora-primary)' }}>
-                    {diary.id === LONG_TERM_MASTER_ID ? t('Long-term Master') : (diary.title || t('Untitled'))}
+                    {isLongTermMaster ? t('Long-term Master') : (diary.title || t('Untitled'))}
                   </h3>
+                  {isLongTermMaster && (
+                    <div className="ml-2 inline-flex shrink-0 items-center gap-1.5 rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-700">
+                      <FileText size={13} strokeWidth={1.9} />
+                      {t('System Document')}
+                    </div>
+                  )}
+                  {!isLongTermMaster && (
                   <div className="flex items-center gap-1 ml-2">
                     <button
                       onClick={(e) => {
@@ -329,11 +369,12 @@ export const DiaryList: React.FC<DiaryListProps> = ({
                       <Trash2 size={16} strokeWidth={1.75} />
                     </button>
                   </div>
+                  )}
                 </div>
                 <p className="text-sm line-clamp-2 mb-2 leading-relaxed" style={{ color: 'var(--aurora-secondary)' }}>
                   {getPreviewText(diary.content) || t('No content')}
                 </p>
-                {diary.tags.length > 0 && (
+                {!isLongTermMaster && diary.tags.length > 0 && (
                   <div className="flex flex-wrap gap-1.5 mb-2">
                     {diary.tags.slice(0, 3).map(tag => (
                       <span
@@ -353,13 +394,20 @@ export const DiaryList: React.FC<DiaryListProps> = ({
                 <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--aurora-muted)' }}>
                   <span className="font-medium">{getDiaryWordCount(diary.content)} {t('words')}</span>
                   <span>•</span>
-                  <span>{formatRelativeTime(diary.updatedAt)}</span>
-                  <span>•</span>
-                  <span>{formatDate(diary.createdAt)}</span>
+                  {isLongTermMaster ? (
+                    <span>{t('Long-term task')}</span>
+                  ) : (
+                    <>
+                      <span>{formatRelativeTime(diary.updatedAt)}</span>
+                      <span>•</span>
+                      <span>{formatDate(diary.createdAt)}</span>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
-          ))
+            );
+          })
         )}
       </div>
 

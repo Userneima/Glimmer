@@ -14,6 +14,11 @@ type MenuPosition = {
   left: number;
 };
 
+type ImageAttrs = {
+  src: string;
+  style?: string;
+};
+
 type BubbleButtonProps = {
   onMouseDown: (event: React.MouseEvent<HTMLButtonElement>) => void;
   isActive?: boolean;
@@ -43,69 +48,105 @@ export const TextBubbleMenu: React.FC<TextBubbleMenuProps> = ({ editor }) => {
   // 保存选区状态
   const savedSelectionRef = useRef<{ from: number; to: number } | null>(null);
 
-  const updateMenuState = useCallback(() => {
-    const { selection } = editor.state;
-
-    if (editor.isActive('table')) {
-      setIsVisible(false);
-      return;
-    }
-
-    // If an image node is active/selected, show image controls anchored to the image
-    if (editor.isActive('image')) {
-      try {
-        const pos = selection.from;
-        // nodeDOM gives the DOM node for a document position
-        const domNode = (editor.view as any).nodeDOM(pos) as HTMLElement | null;
-        let imgEl: HTMLElement | null = null;
-        if (domNode) {
-          if (domNode.nodeName === 'IMG') {
-            imgEl = domNode;
-          } else {
-            imgEl = domNode.querySelector && domNode.querySelector('img');
-          }
-        }
-
-        if (imgEl) {
-          const rect = imgEl.getBoundingClientRect();
-          const top = rect.top + window.scrollY - 44;
-          const left = rect.left + window.scrollX + rect.width / 2;
-          setPosition({ top, left });
-          setIsImageMode(true);
-          setIsVisible(true);
+  const restoreSelectionAndRun = useCallback((action: () => void) => {
+    try {
+      const savedSelection = savedSelectionRef.current;
+      if (savedSelection) {
+        const maxPosition = editor.state.doc.content.size;
+        if (
+          savedSelection.from < 0 ||
+          savedSelection.to < savedSelection.from ||
+          savedSelection.from > maxPosition
+        ) {
+          savedSelectionRef.current = null;
           return;
         }
-      } catch (e) {
-        // fallthrough to text selection behavior
+
+        editor
+          .chain()
+          .focus()
+          .setTextSelection({
+            from: savedSelection.from,
+            to: Math.min(savedSelection.to, maxPosition),
+          })
+          .run();
       }
+
+      action();
+    } catch (err) {
+      console.warn('Failed to restore editor selection', err);
+      savedSelectionRef.current = null;
     }
+  }, [editor]);
 
-    setIsImageMode(false);
+  const updateMenuState = useCallback(() => {
+    try {
+      const { selection } = editor.state;
 
-    if (selection.empty || !editor.isFocused) {
+      if (editor.isActive('table')) {
+        setIsVisible(false);
+        return;
+      }
+
+      // If an image node is active/selected, show image controls anchored to the image
+      if (editor.isActive('image')) {
+        try {
+          const pos = selection.from;
+          // nodeDOM gives the DOM node for a document position
+          const domNode = editor.view.nodeDOM(pos);
+          let imgEl: HTMLElement | null = null;
+          if (domNode instanceof HTMLElement) {
+            if (domNode.nodeName === 'IMG') {
+              imgEl = domNode;
+            } else {
+              imgEl = domNode.querySelector('img');
+            }
+          }
+
+          if (imgEl) {
+            const rect = imgEl.getBoundingClientRect();
+            const top = rect.top + window.scrollY - 44;
+            const left = rect.left + window.scrollX + rect.width / 2;
+            setPosition({ top, left });
+            setIsImageMode(true);
+            setIsVisible(true);
+            return;
+          }
+        } catch {
+          // fallthrough to text selection behavior
+        }
+      }
+
+      setIsImageMode(false);
+
+      if (selection.empty || !editor.isFocused) {
+        setIsVisible(false);
+        return;
+      }
+
+      const domSelection = window.getSelection();
+      if (!domSelection || domSelection.rangeCount === 0 || domSelection.isCollapsed) {
+        setIsVisible(false);
+        return;
+      }
+
+      const range = domSelection.getRangeAt(0);
+      const rect = range.getBoundingClientRect();
+
+      if (rect.width === 0 && rect.height === 0) {
+        setIsVisible(false);
+        return;
+      }
+
+      const top = rect.top + window.scrollY - 52;
+      const left = rect.left + window.scrollX + rect.width / 2;
+
+      setPosition({ top, left });
+      setIsVisible(true);
+    } catch (err) {
+      console.warn('Failed to update editor bubble menu', err);
       setIsVisible(false);
-      return;
     }
-
-    const domSelection = window.getSelection();
-    if (!domSelection || domSelection.rangeCount === 0 || domSelection.isCollapsed) {
-      setIsVisible(false);
-      return;
-    }
-
-    const range = domSelection.getRangeAt(0);
-    const rect = range.getBoundingClientRect();
-
-    if (rect.width === 0 && rect.height === 0) {
-      setIsVisible(false);
-      return;
-    }
-
-    const top = rect.top + window.scrollY - 52;
-    const left = rect.left + window.scrollX + rect.width / 2;
-
-    setPosition({ top, left });
-    setIsVisible(true);
   }, [editor]);
 
   useEffect(() => {
@@ -151,17 +192,23 @@ export const TextBubbleMenu: React.FC<TextBubbleMenuProps> = ({ editor }) => {
     // try updateAttributes; fallback to setImage on the currently selected node
     try {
       editor.chain().focus().updateAttributes('image', widthValue ? { style: `width: ${widthValue};` } : { style: null, width: null }).run();
-    } catch (e) {
+    } catch {
       // best-effort: replace node with same src and new attrs
       const { selection } = editor.state;
       const node = selection instanceof NodeSelection ? selection.node : null;
       if (node && node.type && node.type.name === 'image') {
-        const src = node.attrs.src;
-        const attrs: any = { src };
+        const attrs: ImageAttrs = { src: String(node.attrs.src ?? '') };
         if (widthValue) attrs.style = `width: ${widthValue};`;
         editor.chain().focus().setImage(attrs).run();
       }
     }
+  }, [editor]);
+
+  const handleColorMouseDown = useCallback((event: React.MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    const { from, to } = editor.state.selection;
+    savedSelectionRef.current = { from, to };
+    setShowColorPicker(true);
   }, [editor]);
 
   if (!isVisible) {
@@ -170,18 +217,7 @@ export const TextBubbleMenu: React.FC<TextBubbleMenuProps> = ({ editor }) => {
         {showColorPicker && (
           <ColorPicker
             onColorSelect={(color) => {
-              // 恢复保存的选区并应用颜色
-              if (savedSelectionRef.current) {
-                const { from, to } = savedSelectionRef.current;
-                editor
-                  .chain()
-                  .focus()
-                  .setTextSelection({ from, to })
-                  .setColor(color)
-                  .run();
-              } else {
-                editor.chain().focus().setColor(color).run();
-              }
+              restoreSelectionAndRun(() => editor.chain().focus().setColor(color).run());
             }}
             onClose={() => {
               setShowColorPicker(false);
@@ -253,12 +289,7 @@ export const TextBubbleMenu: React.FC<TextBubbleMenuProps> = ({ editor }) => {
               <LinkIcon size={16} strokeWidth={1.75} />
             </BubbleButton>
             <BubbleButton
-              onMouseDown={handleAction(() => {
-                // 保存当前选区
-                const { from, to } = editor.state.selection;
-                savedSelectionRef.current = { from, to };
-                setShowColorPicker(true);
-              })}
+              onMouseDown={handleColorMouseDown}
               title={t('Text Color')}
             >
               <Palette size={16} strokeWidth={1.75} />
@@ -270,18 +301,7 @@ export const TextBubbleMenu: React.FC<TextBubbleMenuProps> = ({ editor }) => {
       {showColorPicker && (
         <ColorPicker
           onColorSelect={(color) => {
-            // 恢复保存的选区并应用颜色
-            if (savedSelectionRef.current) {
-              const { from, to } = savedSelectionRef.current;
-              editor
-                .chain()
-                .focus()
-                .setTextSelection({ from, to })
-                .setColor(color)
-                .run();
-            } else {
-              editor.chain().focus().setColor(color).run();
-            }
+            restoreSelectionAndRun(() => editor.chain().focus().setColor(color).run());
           }}
           onClose={() => {
             setShowColorPicker(false);

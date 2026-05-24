@@ -13,7 +13,10 @@ create table if not exists diaries (
   folder_id uuid,
   tags text[],
   created_at bigint not null,
-  updated_at bigint not null
+  updated_at bigint not null,
+  is_task_document boolean not null default false,
+  task_document_source_diary_id uuid,
+  task_document_source_task_title text
 );
 
 create table if not exists folders (

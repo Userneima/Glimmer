@@ -1,5 +1,5 @@
 import React from 'react';
-import { Bell, CalendarClock } from 'lucide-react';
+import { CalendarClock, Check } from 'lucide-react';
 import type { AppleReminder } from '../../types';
 import { formatDate, formatTime } from '../../utils/date';
 import { t } from '../../i18n';
@@ -7,9 +7,16 @@ import { t } from '../../i18n';
 interface AppleReminderItemProps {
   reminder: AppleReminder;
   compact?: boolean;
+  completing?: boolean;
+  onComplete?: (reminder: AppleReminder) => void;
 }
 
-export const AppleReminderItem: React.FC<AppleReminderItemProps> = ({ reminder, compact = false }) => {
+export const AppleReminderItem: React.FC<AppleReminderItemProps> = ({
+  reminder,
+  compact = false,
+  completing = false,
+  onComplete,
+}) => {
   const dueText = reminder.dueAt
     ? new Date(reminder.dueAt).toDateString() === new Date().toDateString()
       ? formatTime(reminder.dueAt)
@@ -21,9 +28,20 @@ export const AppleReminderItem: React.FC<AppleReminderItemProps> = ({ reminder, 
       className={`rounded-xl border border-sky-100 bg-white/85 ${compact ? 'px-3 py-2' : 'p-3'} shadow-sm`}
     >
       <div className="flex items-start gap-2">
-        <span className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-sky-50 text-sky-500">
-          <Bell size={12} />
-        </span>
+        <button
+          type="button"
+          disabled={completing || !onComplete}
+          onClick={() => onComplete?.(reminder)}
+          className={`mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-all ${
+            completing
+              ? 'border-sky-200 bg-sky-50 text-sky-400'
+              : 'border-slate-300 bg-white text-transparent hover:border-sky-400 hover:bg-sky-50 hover:text-sky-500'
+          }`}
+          title={t('Complete reminder')}
+          aria-label={t('Complete reminder')}
+        >
+          <Check size={12} strokeWidth={2.4} />
+        </button>
         <div className="min-w-0 flex-1">
           <div className="line-clamp-2 text-sm font-medium text-primary-900">{reminder.title}</div>
           {!compact && reminder.notes && (

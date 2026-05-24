@@ -16,6 +16,7 @@ type LocalBackupSnapshot = {
     diaryTagColors: ReturnType<typeof storage.getDiaryTagColors>;
     longTermIdeas: ReturnType<typeof storage.getLongTermIdeas>;
     analyses: ReturnType<typeof storage.getAnalyses>;
+    autoAnalysisState: ReturnType<typeof storage.getAutoAnalysisState>;
   };
 };
 
@@ -66,6 +67,7 @@ export const buildLocalBackupSnapshot = (
     diaryTagColors: storage.getDiaryTagColors(),
     longTermIdeas: storage.getLongTermIdeas(),
     analyses: storage.getAnalyses(),
+    autoAnalysisState: storage.getAutoAnalysisState(),
   },
 });
 
@@ -77,11 +79,23 @@ export const getLocalBackupSignature = () => {
     taskCount: snapshot.data.tasks.length,
     tagCount: snapshot.data.tags.length,
     longTermIdeaCount: snapshot.data.longTermIdeas.length,
-    diaryIds: snapshot.data.diaries.map((diary) => diary.id).sort(),
-    folderIds: snapshot.data.folders.map((folder) => folder.id).sort(),
-    taskIds: snapshot.data.tasks.map((task) => task.id).sort(),
-    tagIds: snapshot.data.tags.map((tag) => tag.id).sort(),
-    longTermIdeaIds: snapshot.data.longTermIdeas.map((idea) => idea.id).sort(),
+    analysisCount: snapshot.data.analyses.length,
+    autoAnalysisStateCount: Object.keys(snapshot.data.autoAnalysisState).length,
+    diaries: snapshot.data.diaries
+      .map((diary) => [diary.id, diary.title, diary.updatedAt, diary.content.length, diary.tags.join('|')])
+      .sort(),
+    folders: snapshot.data.folders
+      .map((folder) => [folder.id, folder.name, folder.parentId ?? '', folder.color ?? ''])
+      .sort(),
+    tasks: snapshot.data.tasks
+      .map((task) => [task.id, task.title, task.completed, task.completedAt ?? '', task.tags.join('|')])
+      .sort(),
+    tags: snapshot.data.tags
+      .map((tag) => [tag.id, tag.name, tag.color, tag.usageCount])
+      .sort(),
+    longTermIdeas: snapshot.data.longTermIdeas
+      .map((idea) => [idea.id, idea.title, idea.lastEditedAt ?? '', idea.content.length, idea.progress])
+      .sort(),
   });
 };
 
@@ -98,7 +112,14 @@ export const writeDesktopLocalBackup = async (
   if (!isTauriRuntime()) return null;
 
   const snapshot = buildLocalBackupSnapshot(userId, reason);
-  if (snapshot.data.diaries.length === 0 && snapshot.data.longTermIdeas.length === 0) {
+  if (
+    snapshot.data.diaries.length === 0 &&
+    snapshot.data.longTermIdeas.length === 0 &&
+    snapshot.data.tasks.length === 0 &&
+    snapshot.data.tags.length === 0 &&
+    snapshot.data.analyses.length === 0 &&
+    Object.keys(snapshot.data.autoAnalysisState).length === 0
+  ) {
     return null;
   }
 

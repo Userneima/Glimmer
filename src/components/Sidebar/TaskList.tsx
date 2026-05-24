@@ -2,17 +2,18 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { useTasks } from '../../hooks/useTasks';
 import { useAiTaskParser } from '../../hooks/useAiTaskParser';
 import { t } from '../../i18n';
-import { Trash2, Clock, Calendar as CalendarIcon, Search, Loader2, Tag } from 'lucide-react';
+import { Trash2, Search, Loader2, Tag } from 'lucide-react';
 import { Modal } from '../UI/Modal';
-import { TagSelector } from '../UI/TagSelector';
 import { TagManager } from '../UI/TagManager';
-import type { Task, TaskType } from '../../types';
+import type { Task } from '../../types';
 import type { ParsedPlanItem } from '../../utils/planParser';
 import { formatDate, formatTime } from '../../utils/date';
 import { TaskListHeader } from './TaskListHeader';
 import { TaskBulkToolbar } from './TaskBulkToolbar';
 import { TaskItem } from './TaskItem';
 import { AppleRemindersPanel } from './AppleRemindersPanel';
+import { TaskFormModal } from './TaskFormModal';
+import { formatDateInput, taskFormValuesToTaskData, type TaskFormValues } from '../../utils/taskForm';
 
 interface TaskListProps {
   onModalStateChange?: (hasModalOpen: boolean) => void;
@@ -54,16 +55,10 @@ export const TaskList: React.FC<TaskListProps> = ({ onModalStateChange }) => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
-  const [newTaskTitle, setNewTaskTitle] = useState('');
-  const [newTaskNotes, setNewTaskNotes] = useState('');
-  const [newTaskType, setNewTaskType] = useState<TaskType>('long-term');
-  const [newTaskStartDate, setNewTaskStartDate] = useState('');
-  const [newTaskEndDate, setNewTaskEndDate] = useState('');
   const [showAiPlanModal, setShowAiPlanModal] = useState(false);
   const [aiPlanInput, setAiPlanInput] = useState('');
   const [parsedPlans, setParsedPlans] = useState<ParsedPlanItem[]>([]);
   const [aiParseError, setAiParseError] = useState<string | null>(null);
-  const [newTaskTags, setNewTaskTags] = useState<string[]>([]);
   const [showTagManager, setShowTagManager] = useState(false);
   const [showTagFilterDropdown, setShowTagFilterDropdown] = useState(false);
   const [tagFilterSearch, setTagFilterSearch] = useState('');
@@ -82,98 +77,27 @@ export const TaskList: React.FC<TaskListProps> = ({ onModalStateChange }) => {
     onModalStateChange?.(hasModalOpen);
   }, [showCreateModal, showEditModal, showAiPlanModal, onModalStateChange]);
 
-  const handleCreateTask = () => {
-    if (!newTaskTitle.trim()) return;
-
-    const taskData: {
-      notes?: string;
-      taskType: Task['taskType'];
-      startDate?: number;
-      endDate?: number;
-      tags?: string[];
-      sourceContext?: Task['sourceContext'];
-    } = {
-      notes: newTaskNotes.trim() || undefined,
-      taskType: newTaskType,
-      tags: newTaskTags,
-      sourceContext: { kind: 'manual' },
-    };
-
-    if (newTaskType === 'time-range') {
-      if (newTaskStartDate) {
-        taskData.startDate = new Date(newTaskStartDate).getTime();
-      }
-      if (newTaskEndDate) {
-        taskData.endDate = new Date(newTaskEndDate).setHours(23, 59, 59, 999);
-      }
-    }
-
-    addTask(newTaskTitle.trim(), taskData);
-
-    // Reset form
-    setNewTaskTitle('');
-    setNewTaskNotes('');
-    setNewTaskType('long-term');
-    setNewTaskStartDate('');
-    setNewTaskEndDate('');
-    setNewTaskTags([]);
-    setShowCreateModal(false);
-  };
-
   const handleEditTask = (task: Task) => {
     setEditingTaskId(task.id);
-    setNewTaskTitle(task.title);
-    setNewTaskNotes(task.notes || '');
-    setNewTaskType(task.taskType);
-    setNewTaskStartDate(formatDateInput(task.startDate ?? null));
-    setNewTaskEndDate(formatDateInput(task.endDate ?? null));
-    setNewTaskTags(task.tags || []);
     setShowEditModal(true);
   };
 
-  const handleUpdateTask = () => {
-    if (!editingTaskId || !newTaskTitle.trim()) return;
-
-    const updates: Partial<Task> = {
-      title: newTaskTitle.trim(),
-      notes: newTaskNotes.trim() || undefined,
-      taskType: newTaskType,
-      tags: newTaskTags,
-    };
-
-    if (newTaskType === 'time-range') {
-      if (newTaskStartDate) {
-        updates.startDate = new Date(newTaskStartDate).getTime();
-      }
-      if (newTaskEndDate) {
-        updates.endDate = new Date(newTaskEndDate).setHours(23, 59, 59, 999);
-      }
-    } else {
-      // Clear dates for long-term tasks
-      updates.startDate = null;
-      updates.endDate = null;
-    }
-
-    updateTask(editingTaskId, updates);
-
-    // Reset form
-    setEditingTaskId(null);
-    setNewTaskTitle('');
-    setNewTaskNotes('');
-    setNewTaskType('long-term');
-    setNewTaskStartDate('');
-    setNewTaskEndDate('');
-    setNewTaskTags([]);
-    setShowEditModal(false);
+  const handleCreateTask = (values: TaskFormValues) => {
+    addTask(values.title, {
+      ...taskFormValuesToTaskData(values, { clearDatesForLongTerm: false }),
+      sourceContext: { kind: 'manual' },
+    });
+    setShowCreateModal(false);
   };
 
-  const formatDateInput = (timestamp: number | null) => {
-    if (!timestamp) return '';
-    const date = new Date(timestamp);
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
+  const handleUpdateTask = (values: TaskFormValues) => {
+    if (!editingTaskId) return;
+    updateTask(editingTaskId, {
+      title: values.title,
+      ...taskFormValuesToTaskData(values, { clearDatesForLongTerm: true }),
+    });
+    setEditingTaskId(null);
+    setShowEditModal(false);
   };
 
   const handleParsePlans = async () => {
@@ -249,6 +173,9 @@ export const TaskList: React.FC<TaskListProps> = ({ onModalStateChange }) => {
   const currentTasks = activeTab === 'active' ? activeTasks : activeTab === 'future' ? futureTasks : completedTasks;
   const searchFilteredTasks = filterTasksBySearch(currentTasks);
   const filteredTasks = filterTasksByTags(searchFilteredTasks);
+  const editingTask = editingTaskId
+    ? [...activeTasks, ...futureTasks, ...completedTasks].find((task) => task.id === editingTaskId)
+    : null;
 
   const canMoveUp = (taskId: string) => {
     if (activeTab !== 'active') return false;
@@ -298,14 +225,14 @@ export const TaskList: React.FC<TaskListProps> = ({ onModalStateChange }) => {
       </div>
 
       {sourceTab === 'reminders' && (
-        <div className="min-h-0 flex-1 p-3 pt-0">
+        <div className="flex min-h-0 flex-1 flex-col p-3 pt-0">
           <AppleRemindersPanel />
         </div>
       )}
       {sourceTab === 'glimmer' && (
-        <>
+        <div className="flex min-h-0 flex-1 flex-col">
         {/* Search Box */}
-        <div className="relative mb-3">
+        <div className="relative mx-3 mb-3">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--aurora-muted)' }} />
           <input
             type="text"
@@ -318,7 +245,7 @@ export const TaskList: React.FC<TaskListProps> = ({ onModalStateChange }) => {
         </div>
 
       {/* Tag Filter */}
-      <div className="space-y-2">
+      <div className="space-y-2 px-3">
         {/* Tag Filter Bar */}
         <div className="flex flex-wrap gap-1">
           {selectedTags.map((tagId) => {
@@ -532,288 +459,36 @@ export const TaskList: React.FC<TaskListProps> = ({ onModalStateChange }) => {
         </ul>
       </div>
 
-      {/* Create Task Modal */}
-      <Modal
+      <TaskFormModal
+        key={`create-task-${showCreateModal}`}
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
         title={t('Create New Task')}
-      >
-          <div className="space-y-4">
-            {/* Task Title */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                {t('Task Title')}
-              </label>
-              <input
-                type="text"
-                className="w-full border rounded px-3 py-2 text-sm"
-                placeholder={t('Enter task title')}
-                value={newTaskTitle}
-                onChange={(e) => setNewTaskTitle(e.target.value)}
-                autoFocus
-              />
-            </div>
+        submitLabel={t('Create')}
+        tags={tags}
+        onAddTag={addTag}
+        onSubmit={handleCreateTask}
+      />
 
-            {/* Task Notes */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                {t('Notes')} <span className="text-gray-400 text-xs">({t('Optional')})</span>
-              </label>
-              <textarea
-                className="w-full border rounded px-3 py-2 text-sm resize-none"
-                placeholder={t('Add notes...')}
-                value={newTaskNotes}
-                onChange={(e) => setNewTaskNotes(e.target.value)}
-                rows={3}
-              />
-            </div>
-
-            {/* Task Type */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                {t('Task Type')}
-              </label>
-              <div className="flex gap-3">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="taskType"
-                    value="long-term"
-                    checked={newTaskType === 'long-term'}
-                    onChange={(e) => setNewTaskType(e.target.value as TaskType)}
-                  />
-                  <Clock size={16} className="text-gray-600" />
-                  <span className="text-sm">{t('Long-term task')}</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="taskType"
-                    value="time-range"
-                    checked={newTaskType === 'time-range'}
-                    onChange={(e) => setNewTaskType(e.target.value as TaskType)}
-                  />
-                  <CalendarIcon size={16} className="text-orange-500" />
-                  <span className="text-sm">{t('Time-range task')}</span>
-                </label>
-              </div>
-            </div>
-
-            {/* Date Range (only for time-range tasks) */}
-            {newTaskType === 'time-range' && (
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    {t('Start Date')}
-                  </label>
-                  <input
-                    type="date"
-                    className="w-full border rounded px-3 py-2 text-sm"
-                    value={newTaskStartDate}
-                    onChange={(e) => setNewTaskStartDate(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    {t('End Date')}
-                  </label>
-                  <input
-                    type="date"
-                    className="w-full border rounded px-3 py-2 text-sm"
-                    value={newTaskEndDate}
-                    onChange={(e) => setNewTaskEndDate(e.target.value)}
-                    min={newTaskStartDate}
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* Tags */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                {t('Tags')} <span className="text-gray-400 text-xs">({t('Optional')})</span>
-              </label>
-              <TagSelector
-                tags={tags}
-                selectedTagIds={newTaskTags}
-                onTagToggle={(tagId) => {
-                  if (newTaskTags.includes(tagId)) {
-                    setNewTaskTags(prev => prev.filter(id => id !== tagId));
-                  } else {
-                    setNewTaskTags(prev => [...prev, tagId]);
-                  }
-                }}
-                onAddTag={addTag}
-              />
-            </div>
-
-            {/* Action Buttons */}
-            <div className="flex justify-end gap-2 pt-2">
-              <button
-                onClick={() => setShowCreateModal(false)}
-                className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800"
-              >
-                {t('Cancel')}
-              </button>
-              <button
-                onClick={handleCreateTask}
-                disabled={!newTaskTitle.trim()}
-                className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
-              >
-                {t('Create')}
-              </button>
-            </div>
-          </div>
-        </Modal>
-
-        {/* Edit Task Modal */}
-        <Modal
+        <TaskFormModal
+          key={`edit-task-${editingTask?.id ?? 'none'}-${showEditModal}`}
           isOpen={showEditModal}
           onClose={() => {
             setShowEditModal(false);
             setEditingTaskId(null);
-            setNewTaskTitle('');
-            setNewTaskNotes('');
-            setNewTaskType('long-term');
-            setNewTaskStartDate('');
-            setNewTaskEndDate('');
           }}
           title={t('Edit Task')}
-        >
-          <div className="space-y-4">
-            {/* Task Title */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                {t('Task Title')}
-              </label>
-              <input
-                type="text"
-                className="w-full border rounded px-3 py-2 text-sm"
-                placeholder={t('Enter task title')}
-                value={newTaskTitle}
-                onChange={(e) => setNewTaskTitle(e.target.value)}
-                autoFocus
-              />
-            </div>
-
-            {/* Task Notes */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                {t('Notes')} <span className="text-gray-400 text-xs">({t('Optional')})</span>
-              </label>
-              <textarea
-                className="w-full border rounded px-3 py-2 text-sm resize-none"
-                placeholder={t('Add notes...')}
-                value={newTaskNotes}
-                onChange={(e) => setNewTaskNotes(e.target.value)}
-                rows={3}
-              />
-            </div>
-
-            {/* Task Type */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                {t('Task Type')}
-              </label>
-              <div className="flex gap-3">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="editTaskType"
-                    value="long-term"
-                    checked={newTaskType === 'long-term'}
-                    onChange={(e) => setNewTaskType(e.target.value as TaskType)}
-                  />
-                  <Clock size={16} className="text-gray-600" />
-                  <span className="text-sm">{t('Long-term task')}</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="editTaskType"
-                    value="time-range"
-                    checked={newTaskType === 'time-range'}
-                    onChange={(e) => setNewTaskType(e.target.value as TaskType)}
-                  />
-                  <CalendarIcon size={16} className="text-orange-500" />
-                  <span className="text-sm">{t('Time-range task')}</span>
-                </label>
-              </div>
-            </div>
-
-            {/* Date Range (only for time-range tasks) */}
-            {newTaskType === 'time-range' && (
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    {t('Start Date')}
-                  </label>
-                  <input
-                    type="date"
-                    className="w-full border rounded px-3 py-2 text-sm"
-                    value={newTaskStartDate}
-                    onChange={(e) => setNewTaskStartDate(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    {t('End Date')}
-                  </label>
-                  <input
-                    type="date"
-                    className="w-full border rounded px-3 py-2 text-sm"
-                    value={newTaskEndDate}
-                    onChange={(e) => setNewTaskEndDate(e.target.value)}
-                    min={newTaskStartDate}
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* Tags */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                {t('Tags')} <span className="text-gray-400 text-xs">({t('Optional')})</span>
-              </label>
-              <TagSelector
-                tags={tags}
-                selectedTagIds={newTaskTags}
-                onTagToggle={(tagId) => {
-                  if (newTaskTags.includes(tagId)) {
-                    setNewTaskTags(prev => prev.filter(id => id !== tagId));
-                  } else {
-                    setNewTaskTags(prev => [...prev, tagId]);
-                  }
-                }}
-                onAddTag={addTag}
-              />
-            </div>
-
-            <div className="flex justify-end gap-2 pt-2">
-              <button
-                onClick={() => {
-                  setShowEditModal(false);
-                  setEditingTaskId(null);
-                  setNewTaskTitle('');
-                  setNewTaskNotes('');
-                  setNewTaskType('long-term');
-                  setNewTaskStartDate('');
-                  setNewTaskEndDate('');
-                }}
-                className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800"
-              >
-                {t('Cancel')}
-              </button>
-              <button
-                onClick={handleUpdateTask}
-                disabled={!newTaskTitle.trim()}
-                className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
-              >
-                {t('Update')}
-              </button>
-            </div>
-          </div>
-        </Modal>
+          submitLabel={t('Update')}
+          initialTitle={editingTask?.title ?? ''}
+          initialNotes={editingTask?.notes ?? ''}
+          initialTaskType={editingTask?.taskType ?? 'long-term'}
+          initialStartDate={formatDateInput(editingTask?.startDate)}
+          initialEndDate={formatDateInput(editingTask?.endDate)}
+          initialTags={editingTask?.tags ?? []}
+          tags={tags}
+          onAddTag={addTag}
+          onSubmit={handleUpdateTask}
+        />
 
         {/* AI Plan Parse Modal */}
         <Modal
@@ -968,7 +643,7 @@ export const TaskList: React.FC<TaskListProps> = ({ onModalStateChange }) => {
             onToggleFavorite={toggleTagFavorite}
           />
         </Modal>
-        </>
+        </div>
       )}
     </div>
   );

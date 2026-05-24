@@ -177,25 +177,25 @@ input, textarea, select {
 }
 
 .ProseMirror h1 {
-  font-size: 2.25em;
+  font-size: var(--editor-heading-1-size, 1.85em);
   font-weight: 700;
-  margin: 2rem 0 1rem;
+  margin: 1.65rem 0 0.8rem;
   letter-spacing: -0.025em;
   color: var(--aurora-primary);
 }
 
 .ProseMirror h2 {
-  font-size: 1.75em;
+  font-size: var(--editor-heading-2-size, 1.45em);
   font-weight: 600;
-  margin: 1.75rem 0 0.875rem;
+  margin: 1.45rem 0 0.7rem;
   letter-spacing: -0.02em;
   color: var(--aurora-primary);
 }
 
 .ProseMirror h3 {
-  font-size: 1.375em;
+  font-size: var(--editor-heading-3-size, 1.18em);
   font-weight: 600;
-  margin: 1.5rem 0 0.75rem;
+  margin: 1.2rem 0 0.6rem;
   letter-spacing: -0.015em;
   color: #1d1d1f;
 }
@@ -299,6 +299,19 @@ input, textarea, select {
   height: 16px;
   cursor: pointer;
   accent-color: #0ea5e9;
+}
+
+.ProseMirror.task-document-master ul[data-type="taskList"] li[data-type="taskItem"] {
+  border-radius: 10px;
+  margin-left: -4px;
+  padding: 2px 4px;
+  position: relative;
+  transition: background-color 160ms ease, box-shadow 160ms ease;
+}
+
+.ProseMirror.task-document-master ul[data-type="taskList"] li[data-type="taskItem"]:hover {
+  background: rgba(14, 165, 233, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(14, 165, 233, 0.08);
 }
 
 .ProseMirror blockquote {

@@ -6,6 +6,7 @@ import { Button } from '../UI/Button';
 import { t } from '../../i18n';
 import { formatDateTime } from '../../utils/date';
 import type { Diary } from '../../types';
+import { isLongTermMasterDiary } from '../../utils/diarySystem';
 
 interface DiaryHeaderProps {
   diary: Diary;
@@ -16,6 +17,8 @@ interface DiaryHeaderProps {
   onAnalyze: () => void;
   onExport: () => void;
   AnalyzeIcon: React.ComponentType<{ size?: number; strokeWidth?: number }>;
+  hasUnreadAutoAnalysis?: boolean;
+  showAiReview?: boolean;
 }
 
 export const DiaryHeader: React.FC<DiaryHeaderProps> = ({
@@ -27,7 +30,10 @@ export const DiaryHeader: React.FC<DiaryHeaderProps> = ({
   onAnalyze,
   onExport,
   AnalyzeIcon,
+  hasUnreadAutoAnalysis = false,
+  showAiReview = true,
 }) => {
+  const isLongTermMaster = isLongTermMasterDiary(diary);
   const titlePlaceholder = diary.isTemplateDiary ? t('Leave blank to use date only') : t('Untitled');
   const tagsPlaceholder = isMobile ? t('Add tags...') : t('Add tags (press Enter)...');
 
@@ -51,13 +57,21 @@ export const DiaryHeader: React.FC<DiaryHeaderProps> = ({
               </span>
             </div>
           )}
+          {isLongTermMaster && (
+            <div className="mb-2">
+              <span className="inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-700">
+                {t('System Document')}
+              </span>
+            </div>
+          )}
           <Input
             value={diary.title}
             onChange={(e) => onTitleChange(e.target.value)}
             placeholder={titlePlaceholder}
             variant="minimal"
+            disabled={isLongTermMaster}
             className={(isMobile ? 'text-xl' : 'text-2xl') + ' font-bold border-none focus:ring-0 px-0 w-full min-w-0 tracking-tight'}
-            style={{ color: 'var(--aurora-primary)' }}
+            style={{ color: 'var(--aurora-primary)', opacity: isLongTermMaster ? 1 : undefined }}
           />
         </div>
         <div className="ml-3 flex shrink-0 items-center gap-2">
@@ -73,33 +87,40 @@ export const DiaryHeader: React.FC<DiaryHeaderProps> = ({
             <Download size={16} strokeWidth={1.9} />
             {!isMobile && <span>{t('Export')}</span>}
           </Button>
-          <button
-            onClick={onAnalyze}
-            className={
-              (isMobile ? 'p-2' : 'p-2.5') +
-              ' text-white rounded-xl shadow-sm hover:shadow-md transition-all duration-200 active:scale-95 z-10'
-            }
-            style={{
-              background: 'linear-gradient(135deg, var(--aurora-accent) 0%, var(--aurora-accent-alt) 100%)',
-            }}
-            title={t('Analyze')}
-            aria-label={t('Analyze')}
-          >
-            <AnalyzeIcon size={18} strokeWidth={2} />
-          </button>
+          {showAiReview && (
+            <button
+              onClick={onAnalyze}
+              className={
+                (isMobile ? 'h-9 w-9' : 'h-10 w-10') +
+                ' relative inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white/80 text-slate-500 shadow-sm transition-all duration-200 hover:border-sky-200 hover:bg-sky-50 hover:text-sky-600 active:scale-95'
+              }
+              title={t('AI Review')}
+              aria-label={t('AI Review')}
+            >
+              {hasUnreadAutoAnalysis && (
+                <span
+                  className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-red-500 shadow-[0_0_0_4px_rgba(239,68,68,0.16)]"
+                  aria-label={t('New AI analysis ready')}
+                />
+              )}
+              <AnalyzeIcon size={17} strokeWidth={1.9} />
+            </button>
+          )}
         </div>
       </div>
 
-      <div className={isMobile ? 'min-w-0' : 'flex min-w-0 items-center'}>
-        <div className="min-w-0 flex-1">
-          <TagInput
-            tags={diary.tags}
-            onChange={onTagsChange}
-            placeholder={tagsPlaceholder}
-            className={(isMobile ? 'mb-3 ' : '') + 'min-w-0 overflow-hidden'}
-          />
+      {!isLongTermMaster && (
+        <div className={isMobile ? 'min-w-0' : 'flex min-w-0 items-center'}>
+          <div className="min-w-0 flex-1">
+            <TagInput
+              tags={diary.tags}
+              onChange={onTagsChange}
+              placeholder={tagsPlaceholder}
+              className={(isMobile ? 'mb-3 ' : '') + 'min-w-0 overflow-hidden'}
+            />
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="flex items-center gap-4 text-sm text-primary-500 flex-wrap">
         <span className="text-primary-300">•</span>

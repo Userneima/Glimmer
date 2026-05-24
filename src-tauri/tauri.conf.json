@@ -27,6 +27,7 @@
   "bundle": {
     "active": true,
     "targets": ["app", "dmg"],
+    "createUpdaterArtifacts": false,
     "icon": [
       "../public/diary-icon_1.ico"
     ],
@@ -34,6 +35,14 @@
       "minimumSystemVersion": "12.0",
       "infoPlist": "Info.plist",
       "entitlements": "entitlements.plist"
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDI3MjBBM0VBQkJDRjlCNjMKUldSam04Kzc2cU1nSitZbkNqNkxJOUZDdmh6c1E2enEyUFFaVURRbU5TWDVrd3B1UFlhL0RRSDMK",
+      "endpoints": [
+        "https://github.com/Userneima/Glimmer/releases/latest/download/latest.json"
+      ]
     }
   }
 }

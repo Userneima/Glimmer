@@ -1,7 +1,7 @@
 // Offline operation queue for retry mechanism
 export type SyncOperation = {
   id: string;
-  type: 'diary' | 'folder' | 'task';
+  type: 'diary' | 'folder' | 'task' | 'longTermIdea';
   action: 'create' | 'update' | 'delete';
   data: unknown;
   userId: string;
@@ -12,6 +12,50 @@ export type SyncOperation = {
 
 const QUEUE_KEY = 'sync_queue';
 const MAX_RETRIES = 5;
+let currentQueueUserId: string | null = null;
+
+const getQueueKey = (userId: string | null = currentQueueUserId) =>
+  userId ? `${QUEUE_KEY}-${userId}` : QUEUE_KEY;
+
+const readQueueFromKey = (key: string): SyncOperation[] => {
+  try {
+    const data = localStorage.getItem(key);
+    if (!data) return [];
+    return JSON.parse(data) as SyncOperation[];
+  } catch (err) {
+    console.error('Failed to read sync queue', err);
+    return [];
+  }
+};
+
+const writeQueueToKey = (key: string, queue: SyncOperation[]): void => {
+  localStorage.setItem(key, JSON.stringify(queue));
+};
+
+export const setSyncQueueUserId = (userId: string | null) => {
+  currentQueueUserId = userId;
+  if (!userId) return;
+
+  try {
+    const legacy = readQueueFromKey(QUEUE_KEY);
+    if (legacy.length === 0) return;
+
+    const matching = legacy.filter((op) => op.userId === userId);
+    const remaining = legacy.filter((op) => op.userId !== userId);
+    if (matching.length > 0) {
+      const scopedKey = getQueueKey(userId);
+      writeQueueToKey(scopedKey, [...readQueueFromKey(scopedKey), ...matching]);
+    }
+
+    if (remaining.length > 0) {
+      writeQueueToKey(QUEUE_KEY, remaining);
+    } else {
+      localStorage.removeItem(QUEUE_KEY);
+    }
+  } catch (err) {
+    console.error('Failed to migrate legacy sync queue', err);
+  }
+};
 
 export class SyncQueue {
   private static instance: SyncQueue;
@@ -26,21 +70,15 @@ export class SyncQueue {
   }
 
   // Get all operations in the queue
-  getAll(): SyncOperation[] {
-    try {
-      const data = localStorage.getItem(QUEUE_KEY);
-      if (!data) return [];
-      return JSON.parse(data) as SyncOperation[];
-    } catch (err) {
-      console.error('Failed to read sync queue', err);
-      return [];
-    }
+  getAll(userId: string | null = currentQueueUserId): SyncOperation[] {
+    return readQueueFromKey(getQueueKey(userId));
   }
 
   // Add operation to queue
   enqueue(operation: Omit<SyncOperation, 'id' | 'timestamp' | 'retryCount'>): void {
     try {
-      const queue = this.getAll();
+      const key = getQueueKey(operation.userId);
+      const queue = readQueueFromKey(key);
       const newOp: SyncOperation = {
         ...operation,
         id: `${operation.type}_${operation.action}_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
@@ -48,27 +86,29 @@ export class SyncQueue {
         retryCount: 0,
       };
       queue.push(newOp);
-      localStorage.setItem(QUEUE_KEY, JSON.stringify(queue));
+      writeQueueToKey(key, queue);
     } catch (err) {
       console.error('Failed to enqueue operation', err);
     }
   }
 
   // Remove operation from queue
-  dequeue(operationId: string): void {
+  dequeue(operationId: string, userId: string | null = currentQueueUserId): void {
     try {
-      const queue = this.getAll();
+      const key = getQueueKey(userId);
+      const queue = readQueueFromKey(key);
       const filtered = queue.filter((op) => op.id !== operationId);
-      localStorage.setItem(QUEUE_KEY, JSON.stringify(filtered));
+      writeQueueToKey(key, filtered);
     } catch (err) {
       console.error('Failed to dequeue operation', err);
     }
   }
 
   // Update operation retry count and error
-  updateRetry(operationId: string, error: string): void {
+  updateRetry(operationId: string, error: string, userId: string | null = currentQueueUserId): void {
     try {
-      const queue = this.getAll();
+      const key = getQueueKey(userId);
+      const queue = readQueueFromKey(key);
       const updated = queue.map((op) => {
         if (op.id === operationId) {
           return {
@@ -79,40 +119,41 @@ export class SyncQueue {
         }
         return op;
       });
-      localStorage.setItem(QUEUE_KEY, JSON.stringify(updated));
+      writeQueueToKey(key, updated);
     } catch (err) {
       console.error('Failed to update retry count', err);
     }
   }
 
   // Remove operations that exceeded max retries
-  pruneExpired(): void {
+  pruneExpired(userId: string | null = currentQueueUserId): void {
     try {
-      const queue = this.getAll();
+      const key = getQueueKey(userId);
+      const queue = readQueueFromKey(key);
       const valid = queue.filter((op) => op.retryCount < MAX_RETRIES);
-      localStorage.setItem(QUEUE_KEY, JSON.stringify(valid));
+      writeQueueToKey(key, valid);
     } catch (err) {
       console.error('Failed to prune expired operations', err);
     }
   }
 
   // Clear all operations
-  clear(): void {
+  clear(userId: string | null = currentQueueUserId): void {
     try {
-      localStorage.removeItem(QUEUE_KEY);
+      localStorage.removeItem(getQueueKey(userId));
     } catch (err) {
       console.error('Failed to clear sync queue', err);
     }
   }
 
   // Get pending operations count
-  getCount(): number {
-    return this.getAll().length;
+  getCount(userId: string | null = currentQueueUserId): number {
+    return this.getAll(userId).length;
   }
 
   // Get operations for a specific type
-  getByType(type: 'diary' | 'folder' | 'task'): SyncOperation[] {
-    return this.getAll().filter((op) => op.type === type);
+  getByType(type: 'diary' | 'folder' | 'task' | 'longTermIdea', userId: string | null = currentQueueUserId): SyncOperation[] {
+    return this.getAll(userId).filter((op) => op.type === type);
   }
 }
 

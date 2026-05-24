@@ -8,6 +8,7 @@ import { showToast, getErrorMessage } from '../utils/toast';
 import { t } from '../i18n';
 import { remindersBridge } from '../utils/remindersBridge';
 import type { ExternalTaskLink } from '../types';
+import { syncQueue } from '../utils/syncQueue';
 
 export function useTasks() {
   const { user } = useAuth();
@@ -33,24 +34,49 @@ export function useTasks() {
         if (userId) {
           const remote = await cloud.fetchTasks(userId);
           if (!active) return;
-          // Only use remote data if it's not empty, otherwise keep local data
+          const local = storage.getTasks();
           if (remote && remote.length > 0) {
-            // Merge remote data with local tags to preserve tag assignments
-            const local = storage.getTasks();
-            const localTaskMap = new Map(local.map(t => [t.id, t]));
-            const mergedTasks = remote.map(remoteTask => {
-              const localTask = localTaskMap.get(remoteTask.id);
-              // If local task has tags, merge them into remote task
-              if (localTask && localTask.tags && localTask.tags.length > 0) {
-                return { ...remoteTask, tags: localTask.tags };
-              }
-              return remoteTask;
+            // Merge remote data with local-only tasks to avoid losing offline work.
+            const mergedTaskMap = new Map(local.map(t => [t.id, t]));
+            remote.forEach(remoteTask => {
+              const localTask = mergedTaskMap.get(remoteTask.id);
+              mergedTaskMap.set(remoteTask.id, (
+                localTask && localTask.tags && localTask.tags.length > 0
+                  ? { ...remoteTask, tags: localTask.tags }
+                  : remoteTask
+              ));
             });
+            const mergedTasks = Array.from(mergedTaskMap.values());
+            const localOnlyTasks = local.filter(task => !remote.some(remoteTask => remoteTask.id === task.id));
+            if (localOnlyTasks.length > 0) {
+              void Promise.all(localOnlyTasks.map(task => cloud.upsertTask(userId, task))).catch((err) => {
+                localOnlyTasks.forEach(task => {
+                  syncQueue.enqueue({
+                    type: 'task',
+                    action: 'update',
+                    data: task,
+                    userId,
+                  });
+                });
+                showToast(getErrorMessage(err) || t('Cloud sync failed'));
+              });
+            }
             storage.saveTasks(mergedTasks);
             setTasks(mergedTasks);
           } else {
-            // Remote is empty, use local data
-            const local = storage.getTasks();
+            if (local.length > 0) {
+              void Promise.all(local.map(task => cloud.upsertTask(userId, task))).catch((err) => {
+                local.forEach(task => {
+                  syncQueue.enqueue({
+                    type: 'task',
+                    action: 'update',
+                    data: task,
+                    userId,
+                  });
+                });
+                showToast(getErrorMessage(err) || t('Cloud sync failed'));
+              });
+            }
             setTasks(local);
           }
           return;
@@ -71,9 +97,15 @@ export function useTasks() {
     };
   }, [userId]);
 
-  const syncTask = useCallback((task: Task) => {
+  const syncTask = useCallback((task: Task, action: 'create' | 'update' = 'update') => {
     if (!userId) return;
     void cloud.upsertTask(userId, task).catch((err) => {
+      syncQueue.enqueue({
+        type: 'task',
+        action,
+        data: task,
+        userId,
+      });
       showToast(getErrorMessage(err) || t('Cloud sync failed'));
     });
   }, [userId]);
@@ -81,6 +113,14 @@ export function useTasks() {
   const syncTasks = useCallback((items: Task[]) => {
     if (!userId) return;
     void Promise.all(items.map((task) => cloud.upsertTask(userId, task))).catch((err) => {
+      items.forEach((task) => {
+        syncQueue.enqueue({
+          type: 'task',
+          action: 'update',
+          data: task,
+          userId,
+        });
+      });
       showToast(getErrorMessage(err) || t('Cloud sync failed'));
     });
   }, [userId]);
@@ -180,7 +220,7 @@ export function useTasks() {
       sourceContext: opts?.sourceContext || { kind: 'manual' },
     };
     setTasks(prev => [...prev, t]);
-    syncTask(t);
+    syncTask(t, 'create');
     return t;
   }, [tasks, syncTask]);
 
@@ -291,13 +331,22 @@ export function useTasks() {
   }, [tasks, syncTasks]);
 
   const deleteTask = useCallback((id: string) => {
+    const target = tasks.find(t => t.id === id);
     setTasks(prev => prev.filter(t => t.id !== id));
     if (userId) {
       void cloud.deleteTask(userId, id).catch((err) => {
+        if (target) {
+          syncQueue.enqueue({
+            type: 'task',
+            action: 'delete',
+            data: target,
+            userId,
+          });
+        }
         showToast(getErrorMessage(err) || t('Cloud sync failed'));
       });
     }
-  }, [userId]);
+  }, [tasks, userId]);
 
   const toggleComplete = useCallback((id: string) => {
     setTasks(prev => prev.map(t => {

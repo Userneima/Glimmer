@@ -13,10 +13,33 @@ type ExportEntry = {
   blob: Blob;
 };
 
-type FilePickerWindow = Window & {
-  showSaveFilePicker?: (options?: any) => Promise<any>;
-  showDirectoryPicker?: (options?: any) => Promise<any>;
+type SaveFilePickerOptions = {
+  suggestedName?: string;
+  types?: Array<{
+    description?: string;
+    accept: Record<string, string[]>;
+  }>;
 };
+
+type FileSystemWritableFileStream = {
+  write: (data: Blob | BufferSource | string) => Promise<void>;
+  close: () => Promise<void>;
+};
+
+type FileSystemFileHandle = {
+  createWritable: () => Promise<FileSystemWritableFileStream>;
+};
+
+type FileSystemDirectoryHandle = {
+  getFileHandle: (name: string, options?: { create?: boolean }) => Promise<FileSystemFileHandle>;
+};
+
+type FilePickerWindow = Window & {
+  showSaveFilePicker?: (options?: SaveFilePickerOptions) => Promise<FileSystemFileHandle>;
+  showDirectoryPicker?: () => Promise<FileSystemDirectoryHandle>;
+};
+
+const WINDOWS_RESERVED_FILENAME_CHARS = new Set(['<', '>', ':', '"', '/', '\\', '|', '?', '*']);
 
 const MIME_TYPES: Record<ExportFormat, string> = {
   markdown: 'text/markdown',
@@ -36,7 +59,9 @@ const EXTENSIONS: Record<ExportFormat, string> = {
 
 export const sanitizeFilename = (name: string) =>
   (name || 'untitled')
-    .replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_')
+    .split('')
+    .map((char) => (WINDOWS_RESERVED_FILENAME_CHARS.has(char) || char.charCodeAt(0) < 32 ? '_' : char))
+    .join('')
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, 100) || 'untitled';

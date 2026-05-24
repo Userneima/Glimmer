@@ -3,12 +3,13 @@ import { Modal } from './Modal';
 import type { Diary, Folder } from '../../types';
 import { v4 as uuidv4 } from 'uuid';
 import { t } from '../../i18n';
-import { storage } from '../../utils/storage';
+import { storage, type Backup } from '../../utils/storage';
 import { ModalFooter } from './ModalFooter';
 import { showToast } from '../../utils/toast';
 import { Button } from './Button';
+import { markdownToHtml } from '../../utils/markdown';
 
-type BackupItem = { timestamp: number; diaries: Diary[]; folders: Folder[] };
+type BackupItem = Backup;
 type JsonRecord = Record<string, unknown>;
 
 const isJsonRecord = (value: unknown): value is JsonRecord => {
@@ -98,38 +99,7 @@ export const ImportModal: React.FC<ImportModalProps> = ({
     r.readAsArrayBuffer(file);
   });
 
-  const parseMarkdownToHtml = async (markdown: string) => {
-    // Lightweight markdown to HTML (headers, bold, italic, inline code, lists, paragraphs)
-    let md = String(markdown || '').replace(/\r\n/g, '\n');
-
-    // Headings
-    md = md.replace(/^###### (.*$)/gim, '<h6>$1</h6>');
-    md = md.replace(/^##### (.*$)/gim, '<h5>$1</h5>');
-    md = md.replace(/^#### (.*$)/gim, '<h4>$1</h4>');
-    md = md.replace(/^### (.*$)/gim, '<h3>$1</h3>');
-    md = md.replace(/^## (.*$)/gim, '<h2>$1</h2>');
-    md = md.replace(/^# (.*$)/gim, '<h1>$1</h1>');
-
-    // Bold and italic
-    md = md.replace(/\*\*(.*?)\*\*/gim, '<strong>$1</strong>');
-    md = md.replace(/\*(.*?)\*/gim, '<em>$1</em>');
-
-    // Inline code
-    md = md.replace(/`([^`]+)`/gim, '<code>$1</code>');
-
-    // Lists (basic)
-    md = md.replace(/(^|\n)\s*[-*+] (.+)/gim, '$1<li>$2</li>');
-    md = md.replace(/(<li>.*<\/li>)/gim, '<ul>$1</ul>');
-
-    // Paragraphs split by double newlines
-    const parts = md.split('\n\n').map(p => p.trim()).filter(Boolean);
-    const html = parts.map(p => {
-      if (/^<h\d/.test(p) || /^<ul/.test(p) || /^<pre/.test(p)) return p;
-      return `<p>${p.replace(/\n/g, '<br/>')}</p>`;
-    }).join('');
-
-    return html;
-  };
+  const parseMarkdownToHtml = async (markdown: string) => markdownToHtml(markdown);
 
   const parseDocx = async (arrayBuffer: ArrayBuffer) => {
     try {
@@ -173,7 +143,7 @@ export const ImportModal: React.FC<ImportModalProps> = ({
     setFileStatuses(statuses);
   };
 
-  const parseFile = async (file: File): Promise<{ diaries?: Diary[]; folders?: Folder[] } | null> => {
+  const parseFile = async (file: File): Promise<{ diaries?: Diary[]; folders?: Folder[]; fullData?: unknown } | null> => {
     const type = detectType(file.name);
     try {
       if (type === 'json') {
@@ -206,6 +176,18 @@ export const ImportModal: React.FC<ImportModalProps> = ({
         } else if (isJsonRecord(parsed)) {
           // full data object with diaries/folders
           const p = parsed;
+          const hasFullBackupData =
+            Array.isArray(p.tasks) ||
+            Array.isArray(p.tags) ||
+            Array.isArray(p.longTermIdeas) ||
+            Array.isArray(p.analyses) ||
+            p.diaryTagColors !== undefined ||
+            p.autoAnalysisState !== undefined;
+
+          if (hasFullBackupData) {
+            return { fullData: p };
+          }
+
           if ((Array.isArray(p.diaries) || Array.isArray(p.folders)) && (p.diaries || p.folders)) {
             const diaries = Array.isArray(p.diaries)
               ? p.diaries.map((d) => toDiary(d, 'Untitled'))
@@ -349,6 +331,7 @@ export const ImportModal: React.FC<ImportModalProps> = ({
     setIsImporting(true);
     const allDiaries: Diary[] = [];
     const allFolders: Folder[] = [];
+    const fullDataItems: unknown[] = [];
     const statuses: Record<string, string> = { ...fileStatuses };
 
     for (const f of files) {
@@ -368,6 +351,10 @@ export const ImportModal: React.FC<ImportModalProps> = ({
         if (res.folders) {
           allFolders.push(...res.folders);
           statuses[f.name] = `${res.folders.length} 个文件夹`;
+        }
+        if (res.fullData) {
+          fullDataItems.push(res.fullData);
+          statuses[f.name] = t('Backup data');
         }
         setFileStatuses({ ...statuses });
       } catch {
@@ -391,7 +378,13 @@ export const ImportModal: React.FC<ImportModalProps> = ({
       if (allDiaries.length > 0) {
         onImportDiaries(allDiaries, { replace: replaceExisting });
       }
-      if (allDiaries.length === 0 && allFolders.length === 0) {
+      fullDataItems.forEach((item) => {
+        storage.importAllData(item, { replace: replaceExisting });
+      });
+      if (fullDataItems.length > 0) {
+        window.location.reload();
+      }
+      if (allDiaries.length === 0 && allFolders.length === 0 && fullDataItems.length === 0) {
         showToast(t('No importable data found'), 'error');
       } else {
         showToast(t('Imported successfully'), 'success');
@@ -452,7 +445,9 @@ export const ImportModal: React.FC<ImportModalProps> = ({
                 <div key={b.timestamp} className="flex items-center justify-between p-2 border rounded">
                   <div className="text-sm">
                     <div className="font-medium">{t('Backup created at')} {new Date(b.timestamp).toLocaleString()}</div>
-                    <div className="text-xs text-gray-500">{(b.diaries?.length || 0)} {t('Diaries')}, {(b.folders?.length || 0)} {t('Folders')}</div>
+                    <div className="text-xs text-gray-500">
+                      {(b.diaries?.length || 0)} {t('Diaries')}, {(b.folders?.length || 0)} {t('Folders')}, {(b.tasks?.length || 0)} {t('Tasks')}, {(b.longTermIdeas?.length || 0)} {t('Long-term Ideas')}
+                    </div>
                   </div>
                   <div className="flex items-center gap-2">
                     <Button
@@ -461,18 +456,18 @@ export const ImportModal: React.FC<ImportModalProps> = ({
                       onClick={() => {
                         const ok = window.confirm(t('This will replace existing data. Are you sure?'));
                         if (!ok) return;
-                        onImportFolders(b.folders || [], { replace: true });
-                        onImportDiaries(b.diaries || [], { replace: true });
+                        storage.restoreBackup(b.timestamp);
                         showToast(t('Imported successfully'), 'success');
                         onClose();
                         reset();
+                        window.location.reload();
                       }}
                     >{t('Restore backup')}</Button>
                     <Button
                       variant="secondary"
                       size="sm"
                       onClick={() => {
-                        const blob = new Blob([JSON.stringify({ diaries: b.diaries || [], folders: b.folders || [] }, null, 2)], { type: 'application/json' });
+                        const blob = new Blob([JSON.stringify(b, null, 2)], { type: 'application/json' });
                         const url = URL.createObjectURL(blob);
                         const a = document.createElement('a');
                         a.href = url;

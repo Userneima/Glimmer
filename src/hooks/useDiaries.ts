@@ -14,53 +14,26 @@ import { t } from '../i18n';
 import {
   DEFAULT_TEMPLATE_DIARY_CONTENT,
   DEFAULT_TEMPLATE_DIARY_TITLE,
-  LEGACY_DEFAULT_TEMPLATE_DIARY_TITLE,
   buildDiaryFromTemplateDiary,
 } from '../utils/diaryTemplate';
+import {
+  LEGACY_LONG_TERM_MASTER_ID,
+  ensureSystemDiaries,
+  isBlankHtmlContent,
+  isLongTermMasterDiary,
+  isSystemDiary,
+} from '../utils/diarySystem';
+import { mergeDiariesPreferSafeLocal } from '../utils/diaryMerge';
 
-const LEGACY_MASTER_ID = 'long-term-master';
-
-const isLongTermMasterDiary = (diary: Pick<Diary, 'id' | 'isLongTermMaster'>) =>
-  diary.id === LONG_TERM_MASTER_ID || diary.id === LEGACY_MASTER_ID || diary.isLongTermMaster;
-
-const isBlankHtmlContent = (content: string | undefined) => {
-  if (!content) return true;
-  const text = content
-    .replace(/<br\s*\/?>/gi, '')
-    .replace(/<[^>]+>/g, '')
-    .replace(/&nbsp;/g, ' ')
-    .trim();
-  return text.length === 0;
-};
-
-const mergeDiariesPreferSafeLocal = (local: Diary[], remote: Diary[]) => {
-  const map = new Map<string, Diary>(local.map((d) => [d.id, d]));
-  const preservedLocal: Diary[] = [];
-
-  remote.forEach((rd) => {
-    const ld = map.get(rd.id);
-    const remoteUpdatedAt = rd.updatedAt ?? rd.createdAt;
-    const localUpdatedAt = ld ? ld.updatedAt ?? ld.createdAt : 0;
-
-    if (
-      ld &&
-      isLongTermMasterDiary(rd) &&
-      !isBlankHtmlContent(ld.content) &&
-      isBlankHtmlContent(rd.content)
-    ) {
-      preservedLocal.push(ld);
-      return;
-    }
-
-    if (!ld || remoteUpdatedAt >= localUpdatedAt) {
-      map.set(rd.id, rd);
-    }
-  });
-
-  return {
-    merged: Array.from(map.values()),
-    preservedLocal,
-  };
+type CreateDiaryOptions = {
+  createdAt?: number;
+  title?: string;
+  content?: string;
+  tags?: string[];
+  select?: boolean;
+  isTaskDocument?: boolean;
+  taskDocumentSourceDiaryId?: string;
+  taskDocumentSourceTaskTitle?: string;
 };
 
 export const useDiaries = () => {
@@ -74,7 +47,7 @@ export const useDiaries = () => {
   const [currentDiaryId, setCurrentDiaryId] = useState<string | null>(() => {
     const loadedDiaries = storage.getDiaries();
     if (loadedDiaries.length === 0) return null;
-    const master = loadedDiaries.find((d) => d.id === LONG_TERM_MASTER_ID || d.id === LEGACY_MASTER_ID);
+    const master = loadedDiaries.find((d) => d.id === LONG_TERM_MASTER_ID || d.id === LEGACY_LONG_TERM_MASTER_ID);
     return master ? master.id : loadedDiaries[0].id;
   });
   const [searchQuery, setSearchQuery] = useState('');
@@ -87,7 +60,7 @@ export const useDiaries = () => {
     updateCount();
     const unsubscribe = syncManager.addListener(updateCount);
     return unsubscribe;
-  }, [setPendingCount]);
+  }, [setPendingCount, userId]);
 
   // Update current user ID when user changes
   useEffect(() => {
@@ -95,76 +68,22 @@ export const useDiaries = () => {
   }, [userId]);
 
   useEffect(() => {
+    const timers = diarySyncTimersRef.current;
     return () => {
-      Object.values(diarySyncTimersRef.current).forEach((timer) => clearTimeout(timer));
+      Object.values(timers).forEach((timer) => clearTimeout(timer));
     };
   }, []);
 
-  const ensureSystemDiaries = (items: Diary[]): Diary[] => {
-    const legacyIdx = items.findIndex((d) => d.id === LEGACY_MASTER_ID);
-    if (legacyIdx !== -1) {
-      items[legacyIdx] = { ...items[legacyIdx], id: LONG_TERM_MASTER_ID, isLongTermMaster: true };
-    }
-
-    const idx = items.findIndex((d) => d.id === LONG_TERM_MASTER_ID);
-    if (idx !== -1) {
-      if (!items[idx].isLongTermMaster) {
-        items[idx] = { ...items[idx], isLongTermMaster: true };
-      }
-    } else {
-      const now = Date.now();
-      const master: Diary = {
-        id: LONG_TERM_MASTER_ID,
-        title: t('Long-term Master'),
-        content: '',
-        folderId: null,
-        tags: [],
-        createdAt: now,
-        updatedAt: now,
-        isLongTermMaster: true,
-      };
-      items = [master, ...items];
-    }
-
-    const templateIdx = items.findIndex((d) => d.id === TEMPLATE_DIARY_ID);
-    if (templateIdx !== -1) {
-      const templateDiary = items[templateIdx];
-      const nextTitle =
-        templateDiary.title.trim() === LEGACY_DEFAULT_TEMPLATE_DIARY_TITLE
-          ? DEFAULT_TEMPLATE_DIARY_TITLE
-          : templateDiary.title;
-
-      if (!templateDiary.isTemplateDiary || nextTitle !== templateDiary.title) {
-        items[templateIdx] = {
-          ...templateDiary,
-          title: nextTitle,
-          isTemplateDiary: true,
-        };
-      }
-      return items;
-    }
-
-    const now = Date.now();
-    const templateDiary: Diary = {
-      id: TEMPLATE_DIARY_ID,
-      title: DEFAULT_TEMPLATE_DIARY_TITLE,
-      content: DEFAULT_TEMPLATE_DIARY_CONTENT,
-      folderId: null,
-      tags: [],
-      createdAt: now,
-      updatedAt: now,
-      isTemplateDiary: true,
-    };
-
-    return [...items, templateDiary];
-  };
+  const normalizeSystemDiaries = useCallback((items: Diary[]) => (
+    ensureSystemDiaries(items, t('Long-term Master'))
+  ), []);
 
   const refreshDiariesFromCloud = useCallback(async (targetUserId: string) => {
     const remote = await cloud.fetchDiaries(targetUserId);
     if (remote.length === 0) return; // Don't overwrite local with empty cloud result
     const local = storage.getDiaries();
     const { merged: mergedItems, preservedLocal } = mergeDiariesPreferSafeLocal(local, remote);
-    const merged = ensureSystemDiaries(mergedItems).sort(
+    const merged = normalizeSystemDiaries(mergedItems).sort(
       (a, b) => (b.updatedAt ?? b.createdAt) - (a.updatedAt ?? a.createdAt)
     );
     storage.saveDiaries(merged);
@@ -176,7 +95,7 @@ export const useDiaries = () => {
     preservedLocal.forEach((diary) => {
       void cloud.upsertDiary(targetUserId, diary).catch(() => {});
     });
-  }, []);
+  }, [normalizeSystemDiaries]);
 
   useEffect(() => {
     let active = true;
@@ -187,7 +106,7 @@ export const useDiaries = () => {
         storage.copyAnonymousDataToUserIfEmpty(userId);
       }
       const raw = storage.getDiaries();
-      const local = ensureSystemDiaries(raw);
+      const local = normalizeSystemDiaries(raw);
       if (local.length !== raw.length || local.some((d, i) => d !== raw[i])) {
         storage.saveDiaries(local);
       }
@@ -225,7 +144,7 @@ export const useDiaries = () => {
         // Merge: keep all local entries; prefer cloud if newer, but never let
         // a blank cloud Long-term Master erase meaningful local content.
         const { merged: mergedItems, preservedLocal } = mergeDiariesPreferSafeLocal(local, remote);
-        const merged = ensureSystemDiaries(mergedItems).sort(
+        const merged = normalizeSystemDiaries(mergedItems).sort(
           (a, b) => (b.updatedAt ?? b.createdAt) - (a.updatedAt ?? a.createdAt)
         );
         storage.saveDiaries(merged);
@@ -261,9 +180,9 @@ export const useDiaries = () => {
     return () => {
       active = false;
     };
-  }, [userId]);
+  }, [normalizeSystemDiaries, userId]);
 
-  const createDiary = useCallback((folderId: string | null = null, options?: { createdAt?: number }) => {
+  const createDiary = useCallback((folderId: string | null = null, options?: CreateDiaryOptions) => {
     const createdAt = options?.createdAt ?? Date.now();
     const templateDiary = diaries.find((diary) => diary.id === TEMPLATE_DIARY_ID) ?? {
       id: TEMPLATE_DIARY_ID,
@@ -282,10 +201,22 @@ export const useDiaries = () => {
         createdAt,
         folderId,
       }),
+      ...(options?.title !== undefined ? { title: options.title } : {}),
+      ...(options?.content !== undefined ? { content: options.content } : {}),
+      ...(options?.tags !== undefined ? { tags: options.tags } : {}),
+      ...(options?.isTaskDocument !== undefined ? { isTaskDocument: options.isTaskDocument } : {}),
+      ...(options?.taskDocumentSourceDiaryId !== undefined
+        ? { taskDocumentSourceDiaryId: options.taskDocumentSourceDiaryId }
+        : {}),
+      ...(options?.taskDocumentSourceTaskTitle !== undefined
+        ? { taskDocumentSourceTaskTitle: options.taskDocumentSourceTaskTitle }
+        : {}),
     };
     storage.addDiary(newDiary);
     setDiaries(prev => [newDiary, ...prev]);
-    setCurrentDiaryId(newDiary.id);
+    if (options?.select !== false) {
+      setCurrentDiaryId(newDiary.id);
+    }
     if (userId) {
       startSync();
       void (async () => {
@@ -388,25 +319,37 @@ export const useDiaries = () => {
   const updateDiary = useCallback((id: string, updates: Partial<Diary>) => {
     const updatedAt = Date.now();
     const current = diaries.find((d) => d.id === id);
+    const safeUpdates = current && isLongTermMasterDiary(current)
+      ? {
+          ...(updates.content !== undefined ? { content: updates.content } : {}),
+        }
+      : updates;
+    if (current && isLongTermMasterDiary(current) && Object.keys(safeUpdates).length === 0) {
+      return;
+    }
     if (
       current &&
       isLongTermMasterDiary(current) &&
-      typeof updates.content === 'string' &&
-      isBlankHtmlContent(updates.content) &&
+      typeof safeUpdates.content === 'string' &&
+      isBlankHtmlContent(safeUpdates.content) &&
       !isBlankHtmlContent(current.content)
     ) {
       console.warn('[useDiaries] Skip blank overwrite for Long-term Master diary');
       return;
     }
-    storage.updateDiary(id, { ...updates, updatedAt });
+    storage.updateDiary(id, { ...safeUpdates, updatedAt });
     setDiaries(prev =>
-      prev.map(d => (d.id === id ? { ...d, ...updates, updatedAt } : d))
+      prev.map(d => (d.id === id ? { ...d, ...safeUpdates, updatedAt } : d))
     );
     scheduleDiarySync(id);
   }, [diaries, scheduleDiarySync]);
 
   const deleteDiary = useCallback((id: string) => {
     const target = diaries.find(d => d.id === id);
+    if (target && isSystemDiary(target)) {
+      console.warn('[useDiaries] Skip deleting system diary');
+      return;
+    }
     storage.deleteDiary(id);
     setDiaries(prev => prev.filter(d => d.id !== id));
     if (currentDiaryId === id) {
@@ -451,7 +394,7 @@ export const useDiaries = () => {
     try {
       if (options?.replace) {
         // Replace all
-        const normalized = ensureSystemDiaries(imported);
+        const normalized = normalizeSystemDiaries(imported);
         storage.saveDiaries(normalized);
         setDiaries(normalized);
         if (normalized.length > 0) setCurrentDiaryId(normalized[0].id);
@@ -478,7 +421,7 @@ export const useDiaries = () => {
           map.set(normalized.id, normalized);
         }
       });
-      const merged = ensureSystemDiaries(Array.from(map.values())).sort((a, b) => b.updatedAt - a.updatedAt);
+      const merged = normalizeSystemDiaries(Array.from(map.values())).sort((a, b) => b.updatedAt - a.updatedAt);
       storage.saveDiaries(merged);
       setDiaries(merged);
       if (merged.length > 0 && !currentDiaryId) setCurrentDiaryId(merged[0].id);
@@ -491,27 +434,71 @@ export const useDiaries = () => {
       console.error('Import diaries failed', err);
       throw err;
     }
-  }, [currentDiaryId, userId]);
+  }, [currentDiaryId, normalizeSystemDiaries, userId]);
 
   const moveDiary = useCallback((diaryId: string, folderId: string | null) => {
+    const target = diaries.find((diary) => diary.id === diaryId);
+    if (target && isSystemDiary(target)) {
+      console.warn('[useDiaries] Skip moving system diary');
+      return;
+    }
     updateDiary(diaryId, { folderId });
-  }, [updateDiary]);
+  }, [diaries, updateDiary]);
 
   // 批量更新多个日记，避免在循环中多次触发存储和云同步
-  const batchUpdateDiaries = useCallback((updates: Array<{ id: string; changes: Partial<Diary> }>) => {
+  const batchUpdateDiaries = useCallback((
+    updates: Array<{ id: string; changes: Partial<Diary> }>,
+    options?: { preserveUpdatedAt?: boolean; silent?: boolean },
+  ) => {
     if (updates.length === 0) return;
 
     const updatedAt = Date.now();
     const nextDiaries = diaries.map((d) => {
       const entry = updates.find((u) => u.id === d.id);
       if (!entry) return d;
-      return { ...d, ...entry.changes, updatedAt };
+      const safeChanges = isLongTermMasterDiary(d)
+        ? {
+            ...(entry.changes.content !== undefined ? { content: entry.changes.content } : {}),
+          }
+        : entry.changes;
+      if (isLongTermMasterDiary(d) && Object.keys(safeChanges).length === 0) {
+        return d;
+      }
+      return {
+        ...d,
+        ...safeChanges,
+        updatedAt: options?.preserveUpdatedAt ? d.updatedAt : updatedAt,
+      };
     });
 
     storage.saveDiaries(nextDiaries);
     setDiaries(nextDiaries);
 
     if (userId) {
+      if (options?.silent) {
+        void Promise.all(
+          updates.map(({ id, changes }) => {
+            const original = diaries.find((d) => d.id === id);
+            if (!original) return Promise.resolve();
+            const safeChanges = isLongTermMasterDiary(original)
+              ? {
+                  ...(changes.content !== undefined ? { content: changes.content } : {}),
+                }
+              : changes;
+            if (isLongTermMasterDiary(original) && Object.keys(safeChanges).length === 0) {
+              return Promise.resolve();
+            }
+            const payload = {
+              ...original,
+              ...safeChanges,
+              updatedAt: options.preserveUpdatedAt ? original.updatedAt : updatedAt,
+            };
+            return cloud.upsertDiary(userId, payload);
+          }),
+        ).catch(() => {});
+        return;
+      }
+
       startSync();
       void (async () => {
         try {
@@ -519,7 +506,19 @@ export const useDiaries = () => {
             updates.map(({ id, changes }) => {
               const original = diaries.find((d) => d.id === id);
               if (!original) return Promise.resolve();
-              const payload = { ...original, ...changes, updatedAt };
+              const safeChanges = isLongTermMasterDiary(original)
+                ? {
+                    ...(changes.content !== undefined ? { content: changes.content } : {}),
+                  }
+                : changes;
+              if (isLongTermMasterDiary(original) && Object.keys(safeChanges).length === 0) {
+                return Promise.resolve();
+              }
+              const payload = {
+                ...original,
+                ...safeChanges,
+                updatedAt: options?.preserveUpdatedAt ? original.updatedAt : updatedAt,
+              };
               return cloud.upsertDiary(userId, payload);
             }),
           );
@@ -530,7 +529,19 @@ export const useDiaries = () => {
           updates.forEach(({ id, changes }) => {
             const original = diaries.find((d) => d.id === id);
             if (!original) return;
-            const payload = { ...original, ...changes, updatedAt };
+            const safeChanges = isLongTermMasterDiary(original)
+              ? {
+                  ...(changes.content !== undefined ? { content: changes.content } : {}),
+                }
+              : changes;
+            if (isLongTermMasterDiary(original) && Object.keys(safeChanges).length === 0) {
+              return;
+            }
+            const payload = {
+              ...original,
+              ...safeChanges,
+              updatedAt: options?.preserveUpdatedAt ? original.updatedAt : updatedAt,
+            };
             syncQueue.enqueue({
               type: 'diary',
               action: 'update',
@@ -551,6 +562,7 @@ export const useDiaries = () => {
 
   const filteredDiaries = diaries.filter(diary => {
     if (!searchQuery) return true;
+    if (isSystemDiary(diary)) return false;
     const lowerQuery = searchQuery.toLowerCase();
     return (
       diary.title.toLowerCase().includes(lowerQuery) ||
@@ -563,6 +575,7 @@ export const useDiaries = () => {
 
   return {
     diaries: filteredDiaries,
+    allDiaries: diaries,
     currentDiary,
     currentDiaryId,
     searchQuery,

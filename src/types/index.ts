@@ -11,6 +11,9 @@ export interface Diary {
   updatedAt: number;
   isLongTermMaster?: boolean;
   isTemplateDiary?: boolean;
+  isTaskDocument?: boolean;
+  taskDocumentSourceDiaryId?: string;
+  taskDocumentSourceTaskTitle?: string;
 }
 
 export interface Folder {
@@ -131,4 +134,100 @@ export interface AnalysisResult {
   createdAt: number;
   // Optional provider used for this analysis (e.g., 'deepseek','gemini','local')
   source?: string;
+  trigger?: 'manual' | 'auto';
+  contentHash?: string;
+}
+
+export interface AutoAnalysisState {
+  autoAnalyzedAt?: number;
+  analysisId?: string;
+  contentHash?: string;
+  notifiedAt?: number | null;
+  readAt?: number | null;
+  failedAt?: number;
+  lastError?: string;
+  autoTaggedAt?: number;
+  autoTagAppliedAt?: number;
+  autoTagContentHash?: string;
+  autoTagFailedAt?: number;
+  autoTagLastError?: string;
+  autoTags?: string[];
+  autoTagSource?: 'gemini';
+  autoTagPrunedAt?: number;
+  autoTagPrunedTags?: string[];
+}
+
+export type InsightDomain =
+  | 'health'
+  | 'course'
+  | 'work'
+  | 'interview'
+  | 'relationship'
+  | 'life'
+  | 'emotion'
+  | 'idea';
+
+export interface DiaryInsightEvidence {
+  text: string;
+  reason?: string;
+}
+
+export interface DiaryInsightItem {
+  id: string;
+  title: string;
+  domain: InsightDomain;
+  evidence: DiaryInsightEvidence[];
+  confidence: 'low' | 'medium' | 'high';
+  longTermCandidate?: boolean;
+  longTermReason?: string;
+}
+
+export interface DiaryInsight {
+  id: string;
+  diaryId: string;
+  date: number;
+  contentHash: string;
+  summary: string;
+  importantEvents: DiaryInsightItem[];
+  domains: InsightDomain[];
+  people: string[];
+  places: string[];
+  healthSignals: DiaryInsightItem[];
+  courseSignals: DiaryInsightItem[];
+  workSignals: DiaryInsightItem[];
+  interviewSignals: DiaryInsightItem[];
+  relationshipSignals: DiaryInsightItem[];
+  absenceCandidates: DiaryInsightItem[];
+  confirmedItemIds: string[];
+  dismissedItemIds: string[];
+  status: 'pending' | 'confirmed';
+  source: 'deepseek' | 'gemini' | 'local';
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface ReviewDigest {
+  id: string;
+  periodType: 'week' | 'month';
+  startDate: number;
+  endDate: number;
+  sourceDiaryIds: string[];
+  summary: string;
+  highlights: string[];
+  patterns: string[];
+  risks: string[];
+  unresolvedQuestions: string[];
+  suggestedTags: string[];
+  confirmedAt?: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface ReviewQueryResult {
+  diaryId: string;
+  date: number;
+  title: string;
+  reason: string;
+  evidence: DiaryInsightEvidence[];
+  confidence: 'low' | 'medium' | 'high';
 }

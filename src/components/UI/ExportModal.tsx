@@ -7,6 +7,9 @@ import { t } from '../../i18n';
 import { storage } from '../../utils/storage';
 import { ModalFooter } from './ModalFooter';
 import { showToast } from '../../utils/toast';
+import { buildReviewDigest, getMonthRange, getWeekRange, reviewDigestToMarkdown } from '../../utils/diaryReview';
+import { useAuth } from '../../context/useAuth';
+import { cloud } from '../../utils/cloud';
 import {
   type ExportFileMode,
   type ExportFormat,
@@ -30,9 +33,12 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   currentDiary,
   initialExportType = 'current',
 }) => {
+  const { user, isConfigured } = useAuth();
+  const userId = user?.id ?? null;
   const [exportType, setExportType] = useState<'current' | 'all'>(initialExportType);
   const [fileMode, setFileMode] = useState<ExportFileMode>('combined');
   const [format, setFormat] = useState<ExportFormat>('markdown');
+  const [reviewExport, setReviewExport] = useState<'none' | 'week' | 'month'>('none');
   const [isExporting, setIsExporting] = useState(false);
 
   useEffect(() => {
@@ -42,6 +48,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
 
     setExportType(initialExportType);
     setFileMode(initialExportType === 'all' ? 'combined' : 'combined');
+    setReviewExport('none');
   }, [initialExportType, isOpen]);
 
   const diariesToExport = useMemo(
@@ -89,6 +96,23 @@ export const ExportModal: React.FC<ExportModalProps> = ({
     try {
       if (diariesToExport.length === 0) {
         showToast(t('No diaries to export'), 'error');
+        return;
+      }
+
+      if (reviewExport !== 'none') {
+        const baseDate = currentDiary ? new Date(currentDiary.createdAt) : new Date();
+        const range = reviewExport === 'week' ? getWeekRange(baseDate) : getMonthRange(baseDate);
+        const digest = buildReviewDigest(reviewExport, range, diaries, storage.getDiaryInsights());
+        storage.upsertReviewDigest(digest);
+        if (userId && isConfigured) {
+          void cloud.upsertReviewDigest(userId, digest).catch(() => {});
+        }
+        await saveBlobWithPicker({
+          filename: `${reviewExport === 'week' ? 'weekly-review' : 'monthly-review'}_${range.start}.md`,
+          blob: new Blob([reviewDigestToMarkdown(digest)], { type: 'text/markdown' }),
+        });
+        showToast(t('Export completed'), 'success');
+        onClose();
         return;
       }
 
@@ -214,6 +238,35 @@ export const ExportModal: React.FC<ExportModalProps> = ({
             </div>
           </div>
         )}
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            {t('Review Export')}
+          </label>
+          <div className="grid grid-cols-3 gap-2">
+            {([
+              ['none', t('Diary content')],
+              ['week', t('Weekly Review')],
+              ['month', t('Monthly Review')],
+            ] as const).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setReviewExport(value)}
+                className={`rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+                  reviewExport === value
+                    ? 'border-blue-500 bg-blue-50 text-blue-700 shadow-sm'
+                    : 'text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <p className="mt-2 text-xs text-gray-500">
+            {t('Review export uses saved review clues and does not change diary content')}
+          </p>
+        </div>
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">

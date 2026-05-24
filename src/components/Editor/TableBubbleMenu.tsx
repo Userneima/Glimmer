@@ -77,33 +77,38 @@ export const TableBubbleMenu: React.FC<TableBubbleMenuProps> = ({ editor }) => {
   const currentVerticalAlign = currentCellAttributes.verticalAlign ?? 'top';
 
   const updateMenuState = useCallback(() => {
-    if (!editor.isEditable || !editor.isActive('table')) {
+    try {
+      if (!editor.isEditable || !editor.isActive('table')) {
+        setIsVisible(false);
+        return;
+      }
+
+      const { from } = editor.state.selection;
+      const domAtPos = editor.view.domAtPos(from);
+      const anchorNode =
+        domAtPos.node instanceof HTMLElement ? domAtPos.node : domAtPos.node.parentElement;
+
+      const cellElement = anchorNode?.closest('td, th');
+      const tableWrapper = anchorNode?.closest('.tableWrapper');
+
+      if (!cellElement || !tableWrapper) {
+        setIsVisible(false);
+        return;
+      }
+
+      const wrapperRect = tableWrapper.getBoundingClientRect();
+      const desiredTop = wrapperRect.top + window.scrollY - 56;
+      const desiredLeft = wrapperRect.left + window.scrollX + 12;
+
+      setPosition({
+        top: Math.max(16, desiredTop),
+        left: desiredLeft,
+      });
+      setIsVisible(true);
+    } catch (err) {
+      console.warn('Failed to update table bubble menu', err);
       setIsVisible(false);
-      return;
     }
-
-    const { from } = editor.state.selection;
-    const domAtPos = editor.view.domAtPos(from);
-    const anchorNode =
-      domAtPos.node instanceof HTMLElement ? domAtPos.node : domAtPos.node.parentElement;
-
-    const cellElement = anchorNode?.closest('td, th');
-    const tableWrapper = anchorNode?.closest('.tableWrapper');
-
-    if (!cellElement || !tableWrapper) {
-      setIsVisible(false);
-      return;
-    }
-
-    const wrapperRect = tableWrapper.getBoundingClientRect();
-    const desiredTop = wrapperRect.top + window.scrollY - 56;
-    const desiredLeft = wrapperRect.left + window.scrollX + 12;
-
-    setPosition({
-      top: Math.max(16, desiredTop),
-      left: desiredLeft,
-    });
-    setIsVisible(true);
   }, [editor]);
 
   useEffect(() => {
@@ -131,7 +136,12 @@ export const TableBubbleMenu: React.FC<TableBubbleMenuProps> = ({ editor }) => {
   const handleAction = useCallback(
     (action: () => void) => (event: React.MouseEvent<HTMLButtonElement>) => {
       event.preventDefault();
-      action();
+      try {
+        action();
+      } catch (err) {
+        console.warn('Failed to run table action', err);
+        setIsVisible(false);
+      }
     },
     []
   );

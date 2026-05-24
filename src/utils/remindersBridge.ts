@@ -36,6 +36,11 @@ export type ReminderFetchOptions = {
   includeCompleted?: boolean;
 };
 
+export type ReminderCompletionPayload = {
+  externalId: string;
+  completed: boolean;
+};
+
 const isTauriRuntime = (): boolean => {
   return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 };
@@ -71,5 +76,12 @@ export const remindersBridge = {
   async fetchReminders(options: ReminderFetchOptions = {}): Promise<AppleReminder[]> {
     if (!isTauriRuntime()) return [];
     return invoke<AppleReminder[]>('fetch_reminders', { options });
+  },
+
+  async setReminderCompleted(payload: ReminderCompletionPayload): Promise<void> {
+    if (!isTauriRuntime()) {
+      throw new Error('Reminders integration requires the macOS desktop app.');
+    }
+    return invoke<void>('set_reminder_completed', { payload });
   },
 };

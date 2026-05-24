@@ -6,6 +6,7 @@ import { cloud } from '../utils/cloud';
 import { useAuth } from '../context/useAuth';
 import { showToast, getErrorMessage } from '../utils/toast';
 import { t } from '../i18n';
+import { syncQueue } from '../utils/syncQueue';
 
 export const useFolders = () => {
   const { user } = useAuth();
@@ -63,6 +64,12 @@ export const useFolders = () => {
     setFolders(prev => [...prev, newFolder]);
     if (userId) {
       void cloud.upsertFolder(userId, newFolder).catch((err) => {
+        syncQueue.enqueue({
+          type: 'folder',
+          action: 'create',
+          data: newFolder,
+          userId,
+        });
         showToast(getErrorMessage(err) || t('Cloud sync failed'));
       });
     }
@@ -77,6 +84,12 @@ export const useFolders = () => {
       const payload = target ? { ...target, ...updates } : null;
       if (payload) {
         void cloud.upsertFolder(userId, payload).catch((err) => {
+          syncQueue.enqueue({
+            type: 'folder',
+            action: 'update',
+            data: payload,
+            userId,
+          });
           showToast(getErrorMessage(err) || t('Cloud sync failed'));
         });
       }
@@ -87,11 +100,20 @@ export const useFolders = () => {
     storage.deleteFolder(id);
     setFolders(prev => prev.filter(f => f.id !== id));
     if (userId) {
+      const target = folders.find(f => f.id === id);
       void cloud.deleteFolder(userId, id).catch((err) => {
+        if (target) {
+          syncQueue.enqueue({
+            type: 'folder',
+            action: 'delete',
+            data: target,
+            userId,
+          });
+        }
         showToast(getErrorMessage(err) || t('Cloud sync failed'));
       });
     }
-  }, [userId]);
+  }, [folders, userId]);
 
   const importFolders = useCallback((imported: Folder[], options?: { replace?: boolean }) => {
     try {

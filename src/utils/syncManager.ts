@@ -1,6 +1,6 @@
 import { syncQueue, type SyncOperation } from './syncQueue';
 import { cloud } from './cloud';
-import type { Diary, Folder, Task } from '../types';
+import type { Diary, Folder, Task, LongTermIdea } from '../types';
 
 type RetryCallback = (success: boolean, error?: string) => void;
 
@@ -38,27 +38,27 @@ export class SyncManager {
   }
 
   // Process all operations in the queue
-  async processQueue(callback?: RetryCallback): Promise<void> {
+  async processQueue(callback?: RetryCallback, userId?: string | null): Promise<void> {
     if (this.isProcessing) return;
     if (!navigator.onLine) return;
 
     this.isProcessing = true;
-    const operations = syncQueue.getAll();
+    const operations = syncQueue.getAll(userId);
 
     for (const op of operations) {
       try {
         await this.executeOperation(op);
-        syncQueue.dequeue(op.id);
+        syncQueue.dequeue(op.id, op.userId);
         callback?.(true);
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : 'Unknown error';
-        syncQueue.updateRetry(op.id, errorMsg);
+        syncQueue.updateRetry(op.id, errorMsg, op.userId);
         callback?.(false, errorMsg);
       }
     }
 
     // Remove operations that exceeded max retries
-    syncQueue.pruneExpired();
+    syncQueue.pruneExpired(userId);
     this.isProcessing = false;
     this.notifyListeners();
   }
@@ -74,6 +74,9 @@ export class SyncManager {
         break;
       case 'task':
         await this.executeTaskOperation(op);
+        break;
+      case 'longTermIdea':
+        await this.executeLongTermIdeaOperation(op);
         break;
     }
   }
@@ -113,6 +116,19 @@ export class SyncManager {
         break;
       case 'delete':
         await cloud.deleteTask(op.userId, task.id);
+        break;
+    }
+  }
+
+  private async executeLongTermIdeaOperation(op: SyncOperation): Promise<void> {
+    const idea = op.data as LongTermIdea;
+    switch (op.action) {
+      case 'create':
+      case 'update':
+        await cloud.upsertLongTermIdea(op.userId, idea);
+        break;
+      case 'delete':
+        await cloud.deleteLongTermIdea(op.userId, idea.id);
         break;
     }
   }

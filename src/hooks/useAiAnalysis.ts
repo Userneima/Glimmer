@@ -5,11 +5,18 @@ import { v4 as uuidv4 } from 'uuid';
 
 const GEMINI_ENDPOINT = 'https://api.gemini.google.com/v1/complete'; // placeholder for Gemini Free
 
+type AnalyzeOptions = {
+  temperature?: number;
+  allowLocalFallback?: boolean;
+  trigger?: AnalysisResult['trigger'];
+  contentHash?: string;
+};
+
 export function useAiAnalysis() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const analyze = useCallback(async (diaryId: string | null, text: string, opts?: { temperature?: number }) => {
+  const analyze = useCallback(async (diaryId: string | null, text: string, opts?: AnalyzeOptions) => {
     setLoading(true);
     setError(null);
     try {
@@ -109,7 +116,7 @@ export function useAiAnalysis() {
       }
 
       // Local heuristic fallback (if no API key or call failed)
-      if (!summary) {
+      if (!summary && opts?.allowLocalFallback !== false) {
         summary = text.trim().slice(0, 400);
         
         // 生成更有意义的建议，而不是简单提取负面句子
@@ -140,6 +147,10 @@ export function useAiAnalysis() {
         source = 'local';
       }
 
+      if (!summary) {
+        throw new Error('AI analysis unavailable');
+      }
+
       const result: AnalysisResult = {
         id: uuidv4(),
         diaryId: diaryId || null,
@@ -148,6 +159,8 @@ export function useAiAnalysis() {
         tags,
         createdAt: Date.now(),
         source,
+        trigger: opts?.trigger ?? 'manual',
+        contentHash: opts?.contentHash,
       };
 
       // persist

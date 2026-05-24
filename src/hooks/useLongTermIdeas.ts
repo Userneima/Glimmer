@@ -6,6 +6,21 @@ import { cloud } from '../utils/cloud';
 import { showToast, getErrorMessage } from '../utils/toast';
 import { t } from '../i18n';
 import { useAuth } from '../context/useAuth';
+import { syncQueue } from '../utils/syncQueue';
+
+const getIdeaModifiedAt = (idea: LongTermIdea) =>
+  idea.lastEditedAt ?? idea.lastAccessedAt ?? idea.createdAt;
+
+const mergeLongTermIdeasPreferNewest = (local: LongTermIdea[], remote: LongTermIdea[]) => {
+  const map = new Map<string, LongTermIdea>(local.map((idea) => [idea.id, idea]));
+  remote.forEach((remoteIdea) => {
+    const localIdea = map.get(remoteIdea.id);
+    if (!localIdea || getIdeaModifiedAt(remoteIdea) >= getIdeaModifiedAt(localIdea)) {
+      map.set(remoteIdea.id, remoteIdea);
+    }
+  });
+  return Array.from(map.values()).sort((a, b) => getIdeaModifiedAt(b) - getIdeaModifiedAt(a));
+};
 
 export function useLongTermIdeas() {
   const { user } = useAuth();
@@ -25,11 +40,39 @@ export function useLongTermIdeas() {
         if (userId) {
           const remote = await cloud.fetchLongTermIdeas(userId);
           if (!active) return;
+          const local = storage.getLongTermIdeas();
           if (remote && remote.length > 0) {
-            storage.saveLongTermIdeas(remote);
-            setIdeas(remote);
+            const merged = mergeLongTermIdeasPreferNewest(local, remote);
+            const localOnlyIdeas = local.filter(idea => !remote.some(remoteIdea => remoteIdea.id === idea.id));
+            if (localOnlyIdeas.length > 0) {
+              void Promise.all(localOnlyIdeas.map(idea => cloud.upsertLongTermIdea(userId, idea))).catch((err) => {
+                localOnlyIdeas.forEach(idea => {
+                  syncQueue.enqueue({
+                    type: 'longTermIdea',
+                    action: 'update',
+                    data: idea,
+                    userId,
+                  });
+                });
+                showToast(getErrorMessage(err) || t('Cloud sync failed'));
+              });
+            }
+            storage.saveLongTermIdeas(merged);
+            setIdeas(merged);
           } else {
-            const local = storage.getLongTermIdeas();
+            if (local.length > 0) {
+              void Promise.all(local.map(idea => cloud.upsertLongTermIdea(userId, idea))).catch((err) => {
+                local.forEach(idea => {
+                  syncQueue.enqueue({
+                    type: 'longTermIdea',
+                    action: 'update',
+                    data: idea,
+                    userId,
+                  });
+                });
+                showToast(getErrorMessage(err) || t('Cloud sync failed'));
+              });
+            }
             setIdeas(local);
           }
           return;
@@ -53,6 +96,12 @@ export function useLongTermIdeas() {
   const syncIdea = useCallback((idea: LongTermIdea) => {
     if (!userId) return;
     void cloud.upsertLongTermIdea(userId, idea).catch((err) => {
+      syncQueue.enqueue({
+        type: 'longTermIdea',
+        action: 'update',
+        data: idea,
+        userId,
+      });
       showToast(getErrorMessage(err) || t('Cloud sync failed'));
     });
   }, [userId]);
@@ -102,12 +151,21 @@ export function useLongTermIdeas() {
   const deleteIdea = useCallback((id: string) => {
     setIdeas(prev => prev.filter(idea => idea.id !== id));
     if (userId) {
+      const target = ideas.find(idea => idea.id === id);
       void cloud.deleteLongTermIdea(userId, id).catch((err) => {
+        if (target) {
+          syncQueue.enqueue({
+            type: 'longTermIdea',
+            action: 'delete',
+            data: target,
+            userId,
+          });
+        }
         showToast(getErrorMessage(err) || t('Cloud sync failed'));
       });
     }
     showToast(t('Long-term idea deleted'));
-  }, [userId]);
+  }, [ideas, userId]);
 
   const accessIdea = useCallback((id: string) => {
     updateIdea(id, { lastAccessedAt: Date.now() });

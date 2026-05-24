@@ -5,6 +5,8 @@ src-tauri/
 
 # Desktop launchers and installers
 scripts/start-desktop.sh
+scripts/build-desktop.sh
+scripts/generate-updater-manifest.mjs
 scripts/install-desktop-launcher.sh
 scripts/glimmer-launcher.applescript
 scripts/windows/

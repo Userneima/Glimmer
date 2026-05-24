@@ -1,9 +1,14 @@
 use serde::{Deserialize, Serialize};
-use std::io::Write;
+use serde_json::json;
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
+use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::{Child, ChildStdin, Command, Stdio};
+use std::sync::{Mutex, OnceLock};
 
 const REMINDERS_SWIFT: &str = include_str!("reminders_bridge.swift");
+static REMINDERS_SERVER: OnceLock<Mutex<Option<RemindersBridgeServer>>> = OnceLock::new();
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -34,6 +39,13 @@ struct ReminderFetchOptions {
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
+struct ReminderCompletionPayload {
+    external_id: String,
+    completed: bool,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 struct AppleReminder {
     external_id: String,
     title: String,
@@ -52,6 +64,12 @@ struct BridgeResponse {
     result: Option<ReminderCreateResult>,
     reminders: Option<Vec<AppleReminder>>,
     error: Option<String>,
+}
+
+struct RemindersBridgeServer {
+    child: Child,
+    stdin: ChildStdin,
+    stdout: BufReader<std::process::ChildStdout>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -136,7 +154,98 @@ fn run_reminders_bridge<T: Serialize>(
     command: &str,
     payload: Option<&T>,
 ) -> Result<BridgeResponse, String> {
-    let script_path = std::env::temp_dir().join("glimmer_reminders_bridge.swift");
+    run_reminders_bridge_server(command, payload)
+        .or_else(|server_error| {
+            run_reminders_bridge_once(command, payload).map_err(|once_error| {
+                format!("{server_error}; one-shot EventKit bridge failed: {once_error}")
+            })
+        })
+        .or_else(|compiled_error| {
+            run_reminders_bridge_swift_script(command, payload).map_err(|script_error| {
+                format!("{compiled_error}; Swift script fallback failed: {script_error}")
+            })
+        })
+}
+
+fn reminders_bridge_hash() -> u64 {
+    let mut hasher = DefaultHasher::new();
+    REMINDERS_SWIFT.hash(&mut hasher);
+    hasher.finish()
+}
+
+fn reminders_bridge_paths() -> (PathBuf, PathBuf) {
+    let hash = reminders_bridge_hash();
+    let script_path = std::env::temp_dir().join(format!("glimmer_reminders_bridge_{hash}.swift"));
+    let binary_path = std::env::temp_dir().join(format!("glimmer_reminders_bridge_{hash}"));
+    (script_path, binary_path)
+}
+
+fn ensure_reminders_bridge_binary() -> Result<PathBuf, String> {
+    let (script_path, binary_path) = reminders_bridge_paths();
+    if binary_path.exists() {
+        return Ok(binary_path);
+    }
+
+    std::fs::write(&script_path, REMINDERS_SWIFT).map_err(|err| err.to_string())?;
+    let output = Command::new("/usr/bin/swiftc")
+        .arg("-O")
+        .arg(&script_path)
+        .arg("-o")
+        .arg(&binary_path)
+        .output()
+        .map_err(|err| format!("Failed to start Swift compiler: {err}"))?;
+
+    if output.status.success() {
+        return Ok(binary_path);
+    }
+
+    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+    Err(if stderr.is_empty() {
+        "Swift Reminders bridge compilation failed.".to_string()
+    } else {
+        stderr
+    })
+}
+
+fn run_reminders_bridge_once<T: Serialize>(
+    command: &str,
+    payload: Option<&T>,
+) -> Result<BridgeResponse, String> {
+    let binary_path = ensure_reminders_bridge_binary()?;
+
+    let mut child = Command::new(binary_path)
+        .arg(command)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|err| format!("Failed to start Swift Reminders bridge: {err}"))?;
+
+    if let Some(payload) = payload {
+        let input = serde_json::to_vec(payload).map_err(|err| err.to_string())?;
+        if let Some(stdin) = child.stdin.as_mut() {
+            stdin.write_all(&input).map_err(|err| err.to_string())?;
+        }
+    }
+
+    let output = child.wait_with_output().map_err(|err| err.to_string())?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        return Err(if stderr.is_empty() {
+            "Swift Reminders bridge failed.".to_string()
+        } else {
+            stderr
+        });
+    }
+
+    serde_json::from_slice::<BridgeResponse>(&output.stdout).map_err(|err| err.to_string())
+}
+
+fn run_reminders_bridge_swift_script<T: Serialize>(
+    command: &str,
+    payload: Option<&T>,
+) -> Result<BridgeResponse, String> {
+    let (script_path, _) = reminders_bridge_paths();
     std::fs::write(&script_path, REMINDERS_SWIFT).map_err(|err| err.to_string())?;
 
     let mut child = Command::new("/usr/bin/swift")
@@ -166,6 +275,90 @@ fn run_reminders_bridge<T: Serialize>(
     }
 
     serde_json::from_slice::<BridgeResponse>(&output.stdout).map_err(|err| err.to_string())
+}
+
+fn start_reminders_bridge_server() -> Result<RemindersBridgeServer, String> {
+    let binary_path = ensure_reminders_bridge_binary()?;
+    let mut child = Command::new(binary_path)
+        .arg("server")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .map_err(|err| format!("Failed to start EventKit Reminders server: {err}"))?;
+
+    let stdin = child
+        .stdin
+        .take()
+        .ok_or_else(|| "Reminders server stdin is unavailable.".to_string())?;
+    let stdout = child
+        .stdout
+        .take()
+        .ok_or_else(|| "Reminders server stdout is unavailable.".to_string())?;
+
+    Ok(RemindersBridgeServer {
+        child,
+        stdin,
+        stdout: BufReader::new(stdout),
+    })
+}
+
+fn run_reminders_bridge_server<T: Serialize>(
+    command: &str,
+    payload: Option<&T>,
+) -> Result<BridgeResponse, String> {
+    let lock = REMINDERS_SERVER.get_or_init(|| Mutex::new(None));
+    let mut guard = lock
+        .lock()
+        .map_err(|_| "Reminders server lock failed.".to_string())?;
+
+    if guard
+        .as_mut()
+        .and_then(|server| server.child.try_wait().ok().flatten())
+        .is_some()
+    {
+        *guard = None;
+    }
+
+    if guard.is_none() {
+        *guard = Some(start_reminders_bridge_server()?);
+    }
+
+    let server = guard
+        .as_mut()
+        .ok_or_else(|| "Reminders server is unavailable.".to_string())?;
+
+    let request = if let Some(payload) = payload {
+        json!({ "command": command, "payload": payload })
+    } else {
+        json!({ "command": command })
+    };
+    let mut request_line = serde_json::to_vec(&request).map_err(|err| err.to_string())?;
+    request_line.push(b'\n');
+
+    if let Err(err) = server
+        .stdin
+        .write_all(&request_line)
+        .and_then(|_| server.stdin.flush())
+    {
+        *guard = None;
+        return Err(format!("Failed to write to Reminders server: {err}"));
+    }
+
+    let mut response_line = String::new();
+    match server.stdout.read_line(&mut response_line) {
+        Ok(0) => {
+            *guard = None;
+            Err("Reminders server closed unexpectedly.".to_string())
+        }
+        Ok(_) => {
+            serde_json::from_str::<BridgeResponse>(&response_line).map_err(|err| err.to_string())
+        }
+        Err(err) => {
+            *guard = None;
+            Err(format!("Failed to read from Reminders server: {err}"))
+        }
+    }
 }
 
 fn run_reminders_script_fetch() -> Result<Vec<AppleReminder>, String> {
@@ -226,6 +419,44 @@ JSON.stringify(result);
     serde_json::from_slice::<Vec<AppleReminder>>(&output.stdout).map_err(|err| err.to_string())
 }
 
+fn run_reminders_script_set_completed(payload: &ReminderCompletionPayload) -> Result<(), String> {
+    let script = r#"
+function run(argv) {
+  const externalId = argv[0];
+  const completed = argv[1] === "true";
+  const app = Application("Reminders");
+  const reminders = app.reminders.whose({ id: externalId })();
+
+  if (reminders.length === 0) {
+    throw new Error("Reminder was not found.");
+  }
+
+  reminders[0].completed = completed;
+}
+"#;
+
+    let output = Command::new("/usr/bin/osascript")
+        .arg("-l")
+        .arg("JavaScript")
+        .arg("-e")
+        .arg(script)
+        .arg(&payload.external_id)
+        .arg(if payload.completed { "true" } else { "false" })
+        .output()
+        .map_err(|err| format!("Failed to start Reminders script bridge: {err}"))?;
+
+    if output.status.success() {
+        return Ok(());
+    }
+
+    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+    Err(if stderr.is_empty() {
+        "Reminders script bridge failed.".to_string()
+    } else {
+        stderr
+    })
+}
+
 #[tauri::command]
 fn get_reminder_authorization_status() -> Result<String, String> {
     run_reminders_bridge::<()>("status", None)
@@ -251,15 +482,39 @@ fn create_reminder(payload: ReminderCreatePayload) -> Result<ReminderCreateResul
 
 #[tauri::command]
 fn fetch_reminders(options: ReminderFetchOptions) -> Result<Vec<AppleReminder>, String> {
-    match run_reminders_script_fetch() {
-        Ok(reminders) => Ok(reminders),
-        Err(script_error) => {
-            let response = run_reminders_bridge("fetch", Some(&options))?;
-            if let Some(error) = response.error {
-                return Err(format!("{script_error}; EventKit fallback failed: {error}"));
-            }
-            Ok(response.reminders.unwrap_or_default())
+    let response = run_reminders_bridge("fetch", Some(&options))?;
+    if let Some(error) = response.error {
+        match run_reminders_script_fetch() {
+            Ok(reminders) => Ok(reminders),
+            Err(script_error) => Err(format!(
+                "EventKit Reminders bridge failed: {error}; AppleScript fallback failed: {script_error}"
+            )),
         }
+    } else {
+        Ok(response.reminders.unwrap_or_default())
+    }
+}
+
+#[tauri::command]
+fn set_reminder_completed(payload: ReminderCompletionPayload) -> Result<(), String> {
+    let response = run_reminders_bridge("set_completed", Some(&payload));
+    match response {
+        Ok(response) => {
+            if let Some(error) = response.error {
+                run_reminders_script_set_completed(&payload).map_err(|script_error| {
+                    format!(
+                        "EventKit Reminders bridge failed: {error}; AppleScript fallback failed: {script_error}"
+                    )
+                })
+            } else {
+                Ok(())
+            }
+        }
+        Err(eventkit_error) => run_reminders_script_set_completed(&payload).map_err(|script_error| {
+            format!(
+                "EventKit Reminders bridge failed: {eventkit_error}; AppleScript fallback failed: {script_error}"
+            )
+        }),
     }
 }
 
@@ -283,11 +538,29 @@ fn write_local_backup(payload: LocalBackupPayload) -> Result<LocalBackupResult, 
 
 fn main() {
     tauri::Builder::default()
+        .setup(|app| {
+            #[cfg(desktop)]
+            app.handle()
+                .plugin(tauri_plugin_updater::Builder::new().build())?;
+            std::thread::spawn(|| {
+                let _ = run_reminders_bridge(
+                    "fetch",
+                    Some(&ReminderFetchOptions {
+                        scope: Some("all-open".to_string()),
+                        days_ahead: None,
+                        include_completed: Some(false),
+                    }),
+                );
+            });
+            Ok(())
+        })
+        .plugin(tauri_plugin_process::init())
         .invoke_handler(tauri::generate_handler![
             get_reminder_authorization_status,
             request_reminder_access,
             create_reminder,
             fetch_reminders,
+            set_reminder_completed,
             write_local_backup
         ])
         .run(tauri::generate_context!())

@@ -1,7 +1,12 @@
-import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { Analytics } from "@vercel/analytics/react";
 import { useDiaries } from '../../hooks/useDiaries';
+import { useAutoDiaryAnalysis } from '../../hooks/useAutoDiaryAnalysis';
+import { useAutoDiaryTags } from '../../hooks/useAutoDiaryTags';
+import { useDiaryTagActions } from '../../hooks/useDiaryTagActions';
 import { useFolders } from '../../hooks/useFolders';
+import { useLongTermIdeas } from '../../hooks/useLongTermIdeas';
+import { useLocalBackup } from '../../hooks/useLocalBackup';
 import { FolderTree } from '../Sidebar/FolderTree';
 import { TagPanel } from '../Sidebar/TagPanel';
 import { CalendarView } from '../Sidebar/CalendarView';
@@ -13,7 +18,8 @@ import { ResizablePanel } from '../UI/ResizablePanel';
 import { ExportModal } from '../UI/ExportModal';
 import { ImportModal } from '../UI/ImportModal';
 import { SettingsModal } from '../UI/SettingsModal';
-import { BookOpen, Tag as TagIcon, Folder as FolderIcon, Calendar as CalendarIcon, Settings, ListChecks, Lock, LockOpen, List, FileText, Menu, X, ChevronLeft, Upload, Download, Zap } from 'lucide-react';
+import { DesktopUpdateNotice } from '../UI/DesktopUpdateNotice';
+import { BookOpen, Settings, Lock, LockOpen, List, FileText, Menu, X, ChevronLeft, Upload, Download, Zap } from 'lucide-react';
 import { TaskList } from '../Sidebar/TaskList';
 import { AnalysisPanel } from '../Analysis/AnalysisPanel';
 import { ToastHost } from '../UI/ToastHost';
@@ -24,23 +30,31 @@ import { showToast, getErrorMessage } from '../../utils/toast';
 import { syncManager } from '../../utils/syncManager';
 import { ReturnToLongTermIdeasPanel } from '../LongTermIdea/ReturnToLongTermIdeasPanel';
 import { LongTermIdeasDrawer } from '../LongTermIdea/LongTermIdeasDrawer';
-import { TEMPLATE_DIARY_ID } from '../../types';
+import { LONG_TERM_MASTER_ID, TEMPLATE_DIARY_ID } from '../../types';
+import { normalizeDiaryTags } from '../../utils/diaryTags';
+import { preloadAppleReminders } from '../../hooks/useAppleReminders';
+import { applyEditorHeadingSettings } from '../../utils/editorHeadingSettings';
 import {
-  deleteDiaryTag,
-  mergeDiaryTags,
-  normalizeDiaryTag,
-  normalizeDiaryTags,
-  renameDiaryTag,
-  type DiaryTagMergeSuggestion,
-} from '../../utils/diaryTags';
-import { getLocalBackupSignature, shouldRunDailyLocalBackup, writeDesktopLocalBackup } from '../../utils/localBackup';
+  TASK_DOCUMENT_TAG,
+  buildTaskDocumentContent,
+  buildTaskDocumentTitle,
+  isTaskDocumentDiary,
+  normalizeTaskTitle,
+} from '../../utils/taskDocument';
+import { isLongTermMasterDiary, isSystemDiary } from '../../utils/diarySystem';
+import { DesktopLeftSidebar, type LeftPanelView } from './DesktopLeftSidebar';
+import { LongTermTaskDocumentGuidePanel } from './LongTermTaskDocumentGuidePanel';
+import { TaskDocumentModal } from './TaskDocumentModal';
+import { useReviewDataSync } from '../../hooks/useReviewDataSync';
 
 import { t } from '../../i18n';
 
 export const AppLayout: React.FC = () => {
   const { user, signOut, isConfigured } = useAuth();
+  const activeUserId = user?.id ?? null;
   const {
     diaries,
+    allDiaries,
     currentDiary,
     currentDiaryId,
     searchQuery,
@@ -48,12 +62,21 @@ export const AppLayout: React.FC = () => {
     updateDiary,
     deleteDiary,
     moveDiary,
+    batchUpdateDiaries,
     setCurrentDiaryId,
     searchDiaries,
     importDiaries,
   } = useDiaries();
 
   const { folders, createFolder, updateFolder, deleteFolder, importFolders } = useFolders();
+  const { unreadDiaryIds, markDiaryAnalysisRead } = useAutoDiaryAnalysis(allDiaries);
+  useAutoDiaryTags(allDiaries, batchUpdateDiaries);
+  const { addIdea } = useLongTermIdeas();
+  useReviewDataSync(activeUserId, isConfigured);
+
+  useEffect(() => {
+    applyEditorHeadingSettings();
+  }, []);
 
   // Get the latest folder based on createdAt or updatedAt (if available)
   const latestFolderId = useMemo(() => {
@@ -79,7 +102,7 @@ export const AppLayout: React.FC = () => {
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [exportModalInitialType, setExportModalInitialType] = useState<'current' | 'all'>('all');
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
-  const [leftPanelView, setLeftPanelView] = useState<'folders' | 'tags' | 'calendar' | 'tasks'>('folders');
+  const [leftPanelView, setLeftPanelView] = useState<LeftPanelView>('folders');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isAnalysisOpen, setIsAnalysisOpen] = useState(false);
   const [isLeftSidebarExpanded, setIsLeftSidebarExpanded] = useState(false);
@@ -98,80 +121,76 @@ export const AppLayout: React.FC = () => {
   });
   const [isTocHovering, setIsTocHovering] = useState(false);
   const [hasTaskListModalOpen, setHasTaskListModalOpen] = useState(false);
-  const lastMajorBackupSignatureRef = useRef<string | null>(null);
+  const { runMajorLocalBackup, scheduleMajorLocalBackup } = useLocalBackup(activeUserId);
   
   // Long-term idea navigation
   const [navigatingFromIdea, setNavigatingFromIdea] = useState(false);
   const [highlightRange, setHighlightRange] = useState<{ from: number; to: number } | undefined>(undefined);
   const [isLongTermIdeasOpen, setIsLongTermIdeasOpen] = useState(false);
-  
+  const [activeTaskDocumentId, setActiveTaskDocumentId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void preloadAppleReminders({
+        userId: activeUserId,
+        syncCloud: isConfigured,
+      });
+    }, 800);
+
+    return () => window.clearTimeout(timer);
+  }, [activeUserId, isConfigured]);
+
   // Auto-select latest folder when folders change
   useEffect(() => {
-    if (folders && folders.length > 0 && latestFolderId) {
-      // Only update if currently not selected or no folder is selected
-      setSelectedFolderId(prev => {
-        // If no folder is selected or the previous selection is no longer valid, select the latest
-        if (!prev || !folders.some(f => f.id === prev)) {
-          return latestFolderId;
-        }
-        return prev;
-      });
-    } else if (folders && folders.length === 0) {
-      setSelectedFolderId(null);
-    }
+    const timer = window.setTimeout(() => {
+      if (folders && folders.length > 0 && latestFolderId) {
+        // Only update if currently not selected or no folder is selected
+        setSelectedFolderId(prev => {
+          // If no folder is selected or the previous selection is no longer valid, select the latest
+          if (!prev || !folders.some(f => f.id === prev)) {
+            return latestFolderId;
+          }
+          return prev;
+        });
+      } else if (folders && folders.length === 0) {
+        setSelectedFolderId(null);
+      }
+    }, 0);
+
+    return () => window.clearTimeout(timer);
   }, [folders, latestFolderId]);
 
-  const runDailyLocalBackup = useCallback(async () => {
-    try {
-      if (!shouldRunDailyLocalBackup()) {
-        return;
-      }
+  const {
+    handleSelectTag,
+    handleClearTags,
+    handleRenameTag,
+    handleMergeTags,
+    handleApplyTagMergeSuggestions,
+    handleDeleteTag,
+  } = useDiaryTagActions({
+    diaries,
+    setSelectedTags,
+    updateDiary,
+    onTagsChanged: scheduleMajorLocalBackup,
+  });
 
-      const result = await writeDesktopLocalBackup(user?.id ?? null, 'daily');
-      if (result) {
-        console.info('[local-backup] Saved daily Glimmer backup:', result.path);
-      }
-    } catch (err) {
-      console.warn('[local-backup] Failed to save daily Glimmer backup', err);
-    }
-  }, [user?.id]);
-
-  const runMajorLocalBackup = useCallback(async () => {
-    try {
-      const signature = getLocalBackupSignature();
-      if (signature === lastMajorBackupSignatureRef.current) {
-        return;
-      }
-
-      const result = await writeDesktopLocalBackup(user?.id ?? null, 'major-change');
-      if (result) {
-        lastMajorBackupSignatureRef.current = signature;
-        console.info('[local-backup] Saved major-change Glimmer backup:', result.path);
-      }
-    } catch (err) {
-      console.warn('[local-backup] Failed to save major-change Glimmer backup', err);
-    }
-  }, [user?.id]);
-
-  useEffect(() => {
-    const startupTimer = window.setTimeout(() => {
-      void runDailyLocalBackup();
-    }, 15 * 1000);
-
-    const intervalTimer = window.setInterval(() => {
-      void runDailyLocalBackup();
-    }, 60 * 60 * 1000);
-
-    return () => {
-      window.clearTimeout(startupTimer);
-      window.clearInterval(intervalTimer);
-    };
-  }, [runDailyLocalBackup]);
-  
   // 移动端相关状态
   const [isMobile, setIsMobile] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [currentView, setCurrentView] = useState<'editor' | 'diaryList'>('editor');
+
+  const handleSelectDiary = useCallback((
+    diaryId: string,
+    options?: {
+      highlightRange?: { from: number; to: number };
+      fromLongTermIdea?: boolean;
+    },
+  ) => {
+    markDiaryAnalysisRead(diaryId);
+    setHighlightRange(options?.highlightRange);
+    setNavigatingFromIdea(Boolean(options?.fromLongTermIdea));
+    setCurrentDiaryId(diaryId);
+  }, [markDiaryAnalysisRead, setCurrentDiaryId]);
 
   const openExportModal = useCallback((initialType: 'current' | 'all' = 'all') => {
     setExportModalInitialType(initialType);
@@ -186,17 +205,16 @@ export const AppLayout: React.FC = () => {
 
   const handleNavigateToDiary = useCallback((diaryId: string, position?: { from: number; to: number }) => {
     setIsLongTermIdeasOpen(false);
-    setNavigatingFromIdea(true);
-    if (position) {
-      setHighlightRange(position);
-    }
-    setCurrentDiaryId(diaryId);
+    handleSelectDiary(diaryId, {
+      highlightRange: position,
+      fromLongTermIdea: true,
+    });
     if (isMobile) {
       setCurrentView('editor');
     }
     // 清除筛选状态，确保日记列表能正常显示
     setSelectedFolderId(null);
-  }, [isMobile]);
+  }, [handleSelectDiary, isMobile]);
 
   // 检测屏幕宽度变化
   useEffect(() => {
@@ -230,11 +248,12 @@ export const AppLayout: React.FC = () => {
 
   const handleTitleChange = useCallback(
     (newTitle: string) => {
+      if (currentDiary && isLongTermMasterDiary(currentDiary)) return;
       if (currentDiaryId) {
         updateDiary(currentDiaryId, { title: newTitle });
       }
     },
-    [currentDiaryId, updateDiary]
+    [currentDiary, currentDiaryId, updateDiary]
   );
 
   const handleContentChange = useCallback(
@@ -256,6 +275,24 @@ export const AppLayout: React.FC = () => {
     [currentDiaryId, currentDiary, updateDiary]
   );
 
+  const isCurrentTaskDocument = currentDiary ? isTaskDocumentDiary(currentDiary) : false;
+  const isCurrentLongTermMaster = currentDiaryId === LONG_TERM_MASTER_ID;
+  const canUseAiReview = Boolean(
+    currentDiary &&
+    !isCurrentLongTermMaster &&
+    !isCurrentTaskDocument &&
+    !currentDiary.isTemplateDiary &&
+    !currentDiary.isLongTermMaster
+  );
+
+  const handleOpenAnalysis = useCallback(() => {
+    if (!canUseAiReview) return;
+    if (currentDiaryId) {
+      markDiaryAnalysisRead(currentDiaryId);
+    }
+    setIsAnalysisOpen(true);
+  }, [canUseAiReview, currentDiaryId, markDiaryAnalysisRead]);
+
   const handleCreateDiary = () => {
     createDiary(selectedFolderId);
   };
@@ -272,122 +309,89 @@ export const AppLayout: React.FC = () => {
     }
   }, [isMobile, setCurrentDiaryId]);
 
+  const handleEnsureTaskDocument = useCallback((taskTitle: string, taskDocumentId?: string | null) => {
+    const normalizedTitle = normalizeTaskTitle(taskTitle);
+    const expectedTitle = buildTaskDocumentTitle(normalizedTitle);
+    const existingById = taskDocumentId
+      ? allDiaries.find((diary) => diary.id === taskDocumentId)
+      : null;
+    if (existingById && isTaskDocumentDiary(existingById)) {
+      const previousSourceTitle = existingById.taskDocumentSourceTaskTitle;
+      const shouldSyncTitle =
+        !previousSourceTitle ||
+        existingById.title === buildTaskDocumentTitle(previousSourceTitle);
+      if (
+        (shouldSyncTitle && existingById.title !== expectedTitle) ||
+        existingById.taskDocumentSourceTaskTitle !== normalizedTitle ||
+        !existingById.isTaskDocument ||
+        !existingById.tags.includes(TASK_DOCUMENT_TAG)
+      ) {
+        updateDiary(existingById.id, {
+          ...(shouldSyncTitle ? { title: expectedTitle } : {}),
+          isTaskDocument: true,
+          taskDocumentSourceDiaryId: LONG_TERM_MASTER_ID,
+          taskDocumentSourceTaskTitle: normalizedTitle,
+          tags: Array.from(new Set([...existingById.tags, TASK_DOCUMENT_TAG])),
+        });
+      }
+      return existingById.id;
+    }
+
+    if (taskDocumentId) {
+      console.warn('[task-document] Existing task document id not found, creating a new task document', taskDocumentId);
+    }
+
+    const created = createDiary(null, {
+      title: expectedTitle,
+      content: buildTaskDocumentContent(normalizedTitle),
+      tags: [TASK_DOCUMENT_TAG],
+      select: false,
+      isTaskDocument: true,
+      taskDocumentSourceDiaryId: LONG_TERM_MASTER_ID,
+      taskDocumentSourceTaskTitle: normalizedTitle,
+    });
+
+    return created.id;
+  }, [allDiaries, createDiary, updateDiary]);
+
+  const handleNavigateTaskDocument = useCallback((taskDocumentId: string) => {
+    setActiveTaskDocumentId(taskDocumentId);
+    if (isMobile) {
+      setIsSidebarOpen(false);
+    }
+  }, [isMobile]);
+
+  const handleCloseTaskDocument = useCallback(() => {
+    setActiveTaskDocumentId(null);
+  }, []);
+
   const handleChangeDiaryDate = (id: string, date: Date) => {
+    const target = allDiaries.find((diary) => diary.id === id);
+    if (target && isSystemDiary(target)) return;
     updateDiary(id, { createdAt: date.getTime() });
-  }; 
+  };
+
+  const canMoveDiaryToFolder = useCallback((id: string) => {
+    const target = allDiaries.find((diary) => diary.id === id);
+    return !target || !isSystemDiary(target);
+  }, [allDiaries]);
 
   const handleCreateFolder = (name: string, parentId: string | null) => {
     createFolder(name, parentId);
-    window.setTimeout(() => {
-      void runMajorLocalBackup();
-    }, 500);
+    scheduleMajorLocalBackup(500);
   };
 
   const handleUpdateFolder = (id: string, name: string) => {
     updateFolder(id, { name });
-    window.setTimeout(() => {
-      void runMajorLocalBackup();
-    }, 500);
-  };
-
-  const handleSelectTag = (tag: string) => {
-    const normalizedTag = normalizeDiaryTag(tag);
-    if (!normalizedTag) return;
-    setSelectedTags(prev =>
-      prev.includes(normalizedTag) ? prev.filter(t => t !== normalizedTag) : [...prev, normalizedTag]
-    );
-  };
-
-  const handleClearTags = () => {
-    setSelectedTags([]);
-  };
-
-  const handleRenameTag = (oldTag: string, newTag: string) => {
-    const normalizedOldTag = normalizeDiaryTag(oldTag);
-    const normalizedNewTag = normalizeDiaryTag(newTag);
-    if (!normalizedOldTag || !normalizedNewTag) return;
-
-    diaries.forEach(diary => {
-      const nextTags = renameDiaryTag(diary.tags, normalizedOldTag, normalizedNewTag);
-      if (nextTags.join('\u0000') !== normalizeDiaryTags(diary.tags).join('\u0000')) {
-        updateDiary(diary.id, { tags: nextTags });
-      }
-    });
-    setSelectedTags(prev => normalizeDiaryTags(prev.map(tag => (
-      normalizeDiaryTag(tag) === normalizedOldTag ? normalizedNewTag : tag
-    ))));
-    window.setTimeout(() => {
-      void runMajorLocalBackup();
-    }, 1000);
-  };
-
-  const handleMergeTags = (tags: string[], newTag: string) => {
-    const normalizedTags = normalizeDiaryTags(tags);
-    const normalizedNewTag = normalizeDiaryTag(newTag);
-    if (normalizedTags.length < 2 || !normalizedNewTag) return;
-
-    diaries.forEach(diary => {
-      const nextTags = mergeDiaryTags(diary.tags, normalizedTags, normalizedNewTag);
-      if (nextTags.join('\u0000') !== normalizeDiaryTags(diary.tags).join('\u0000')) {
-        updateDiary(diary.id, { tags: nextTags });
-      }
-    });
-    setSelectedTags(prev => {
-      const hadMergedTag = prev.some(tag => normalizedTags.includes(normalizeDiaryTag(tag)));
-      const keptTags = prev.filter(tag => !normalizedTags.includes(normalizeDiaryTag(tag)));
-      return normalizeDiaryTags(hadMergedTag ? [...keptTags, normalizedNewTag] : keptTags);
-    });
-    window.setTimeout(() => {
-      void runMajorLocalBackup();
-    }, 1000);
-  };
-
-  const handleApplyTagMergeSuggestions = (suggestions: DiaryTagMergeSuggestion[]) => {
-    if (suggestions.length === 0) return;
-
-    diaries.forEach(diary => {
-      const nextTags = suggestions.reduce(
-        (tags, suggestion) => mergeDiaryTags(tags, suggestion.tags, suggestion.targetTag),
-        normalizeDiaryTags(diary.tags)
-      );
-      if (nextTags.join('\u0000') !== normalizeDiaryTags(diary.tags).join('\u0000')) {
-        updateDiary(diary.id, { tags: nextTags });
-      }
-    });
-
-    setSelectedTags(prev => {
-      const normalizedSelected = normalizeDiaryTags(prev);
-      const nextSelected = suggestions.reduce((tags, suggestion) => {
-        const sources = new Set(suggestion.tags.map(normalizeDiaryTag));
-        const hadMergedTag = tags.some(tag => sources.has(normalizeDiaryTag(tag)));
-        const keptTags = tags.filter(tag => !sources.has(normalizeDiaryTag(tag)));
-        return normalizeDiaryTags(hadMergedTag ? [...keptTags, suggestion.targetTag] : keptTags);
-      }, normalizedSelected);
-      return nextSelected;
-    });
-    window.setTimeout(() => {
-      void runMajorLocalBackup();
-    }, 1000);
-  };
-
-  const handleDeleteTag = (tag: string) => {
-    const normalizedTag = normalizeDiaryTag(tag);
-    if (!normalizedTag) return;
-
-    diaries.forEach(diary => {
-      const nextTags = deleteDiaryTag(diary.tags, normalizedTag);
-      if (nextTags.join('\u0000') !== normalizeDiaryTags(diary.tags).join('\u0000')) {
-        updateDiary(diary.id, { tags: nextTags });
-      }
-    });
-    setSelectedTags(prev => prev.filter(selectedTag => normalizeDiaryTag(selectedTag) !== normalizedTag));
-    window.setTimeout(() => {
-      void runMajorLocalBackup();
-    }, 1000);
+    scheduleMajorLocalBackup(500);
   };
 
   const visibleDiaries = useMemo(
-    () => diaries.filter((diary) => !diary.isTemplateDiary),
+    () => diaries.filter((diary) => !diary.isTemplateDiary && !isTaskDocumentDiary(diary)),
+    [diaries]
+  );
+  const ordinaryDiaries = useMemo(
+    () => diaries.filter((diary) => !isSystemDiary(diary) && !isTaskDocumentDiary(diary)),
     [diaries]
   );
 
@@ -400,11 +404,27 @@ export const AppLayout: React.FC = () => {
     : visibleDiaries;
 
   const diaryContent = currentDiary?.content ?? '';
+  const activeTaskDocument = activeTaskDocumentId
+    ? allDiaries.find((diary) => diary.id === activeTaskDocumentId && isTaskDocumentDiary(diary)) ?? null
+    : null;
 
   const wordCount = getDiaryWordCount(diaryContent);
 
+  const handleTaskDocumentTitleChange = useCallback((title: string) => {
+    if (activeTaskDocumentId) {
+      updateDiary(activeTaskDocumentId, { title });
+    }
+  }, [activeTaskDocumentId, updateDiary]);
+
+  const handleTaskDocumentContentChange = useCallback((content: string) => {
+    if (activeTaskDocumentId) {
+      updateDiary(activeTaskDocumentId, { content });
+    }
+  }, [activeTaskDocumentId, updateDiary]);
+
   const handleSwitchAccount = async () => {
     try {
+      await runMajorLocalBackup();
       await signOut();
       showToast(t('Switched account. Please sign in again.'));
     } catch (err) {
@@ -414,6 +434,7 @@ export const AppLayout: React.FC = () => {
 
   const handleLogout = async () => {
     try {
+      await runMajorLocalBackup();
       await signOut();
       showToast(t('Logged out successfully'));
     } catch (err) {
@@ -421,340 +442,56 @@ export const AppLayout: React.FC = () => {
     }
   };
 
-  const desktopSidebarTabs = [
-    { key: 'folders', label: t('Folders'), icon: FolderIcon },
-    { key: 'tags', label: t('Tags'), icon: TagIcon },
-    { key: 'calendar', label: t('Calendar'), icon: CalendarIcon },
-    { key: 'tasks', label: t('Tasks'), icon: ListChecks },
-  ] as const;
-
   return (
     <div className="h-screen">
       {import.meta.env.PROD ? <Analytics /> : null}
       {/* 桌面端布局 */}
       {!isMobile && (
         <div className="flex h-full">
-          {/* 左侧边栏 - 毛玻璃材质 */}
-          <div
-            className={`flex-shrink-0 flex flex-col overflow-hidden border-r border-slate-200/60 ${
-              isLeftSidebarPinned || isLeftSidebarExpanded ? 'w-64' : 'w-12'
-            }`}
-            style={{ 
-              backgroundColor: 'rgba(255, 255, 255, 0.75)',
-              transition: 'width 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-              willChange: 'width'
-            }}
-            onMouseEnter={() => !isLeftSidebarPinned && setIsLeftSidebarExpanded(true)}
-            onMouseLeave={() => {
-              // Don't collapse if focus is on a modal element or if TaskList has modal open
-              if (hasTaskListModalOpen) return;
-              const activeElement = document.activeElement;
-              const isModalFocused = activeElement && (activeElement.closest('.fixed') || activeElement.closest('[role="dialog"]'));
-              if (!isLeftSidebarPinned && !isModalFocused) {
-                setIsLeftSidebarExpanded(false);
-              }
-            }}
-          >
-            {/* Sidebar Header Tabs - 强调色 */}
-            <div
-              className={`${
-                isLeftSidebarPinned || isLeftSidebarExpanded ? 'px-3 py-3' : 'flex flex-col'
-              }`}
-              style={{ backgroundColor: 'rgba(241, 245, 249, 0.72)' }}
-            >
-              {isLeftSidebarPinned || isLeftSidebarExpanded ? (
-                <div className="grid grid-cols-4 gap-1">
-                  {desktopSidebarTabs.map(({ key, label, icon: Icon }) => {
-                    const isActive = leftPanelView === key;
-                    return (
-                      <button
-                        key={key}
-                        onClick={() => setLeftPanelView(key)}
-                        className={`flex h-12 flex-col items-center justify-center gap-1 rounded-lg text-[11px] font-medium transition-all duration-200 ease-apple ${
-                          isActive ? 'shadow-sm' : ''
-                        }`}
-                        style={{
-                          color: isActive ? 'var(--aurora-accent)' : 'var(--aurora-secondary)',
-                          backgroundColor: isActive ? 'rgba(14, 165, 233, 0.11)' : 'transparent',
-                          boxShadow: isActive ? 'inset 0 -2px 0 rgba(14, 165, 233, 0.55)' : 'none',
-                        }}
-                      >
-                        <Icon size={15} />
-                        <span className="truncate">{label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              ) : (
-                <>
-                  <button
-                    onClick={() => setLeftPanelView('folders')}
-                    className="flex-col w-12 h-12 flex items-center justify-center gap-1.5 font-medium transition-all duration-200 ease-apple"
-                    style={{
-                      color: leftPanelView === 'folders' ? 'var(--aurora-accent)' : 'var(--aurora-secondary)',
-                      backgroundColor: leftPanelView === 'folders' ? 'rgba(14, 165, 233, 0.15)' : 'transparent',
-                      borderRight: leftPanelView === 'folders' ? '2px solid var(--aurora-accent)' : 'none'
-                    }}
-                  >
-                    <FolderIcon size={14} />
-                  </button>
-                  <button
-                    onClick={() => setLeftPanelView('tags')}
-                    className="flex-col w-12 h-12 flex items-center justify-center gap-1.5 font-medium transition-all duration-200 ease-apple"
-                    style={{
-                      color: leftPanelView === 'tags' ? 'var(--aurora-accent)' : 'var(--aurora-secondary)',
-                      backgroundColor: leftPanelView === 'tags' ? 'rgba(14, 165, 233, 0.15)' : 'transparent',
-                      borderRight: leftPanelView === 'tags' ? '2px solid var(--aurora-accent)' : 'none'
-                    }}
-                  >
-                    <TagIcon size={14} />
-                  </button>
-                  <button
-                    onClick={() => setLeftPanelView('calendar')}
-                    className="flex-col w-12 h-12 flex items-center justify-center gap-1.5 font-medium transition-all duration-200 ease-apple"
-                    style={{
-                      color: leftPanelView === 'calendar' ? 'var(--aurora-accent)' : 'var(--aurora-secondary)',
-                      backgroundColor: leftPanelView === 'calendar' ? 'rgba(14, 165, 233, 0.15)' : 'transparent',
-                      borderRight: leftPanelView === 'calendar' ? '2px solid var(--aurora-accent)' : 'none'
-                    }}
-                  >
-                    <CalendarIcon size={14} />
-                  </button>
-                  <button
-                    onClick={() => setLeftPanelView('tasks')}
-                    className="flex-col w-12 h-12 flex items-center justify-center gap-1.5 font-medium transition-all duration-200 ease-apple"
-                    style={{
-                      color: leftPanelView === 'tasks' ? 'var(--aurora-accent)' : 'var(--aurora-secondary)',
-                      backgroundColor: leftPanelView === 'tasks' ? 'rgba(14, 165, 233, 0.15)' : 'transparent',
-                      borderRight: leftPanelView === 'tasks' ? '2px solid var(--aurora-accent)' : 'none'
-                    }}
-                  >
-                    <ListChecks size={14} />
-                  </button>
-                </>
-              )}
-            </div>
-
-            {/* Sidebar Content */}
-            {(isLeftSidebarPinned || isLeftSidebarExpanded) && (
-              <div className="flex-1 overflow-hidden">
-                {leftPanelView === 'folders' ? (
-                  <FolderTree
-                    folders={folders}
-                    onCreateFolder={handleCreateFolder}
-                    onUpdateFolder={handleUpdateFolder}
-                    onDeleteFolder={deleteFolder}
-                    onMoveDiary={moveDiary}
-                    selectedFolderId={selectedFolderId}
-                    onSelectFolder={setSelectedFolderId}
-                  />
-                ) : leftPanelView === 'tags' ? (
-                  <TagPanel
-                    diaries={visibleDiaries}
-                    selectedTags={selectedTags}
-                    onSelectTag={handleSelectTag}
-                    onClearTags={handleClearTags}
-                    onRenameTag={handleRenameTag}
-                    onMergeTags={handleMergeTags}
-                    onApplyTagMergeSuggestions={handleApplyTagMergeSuggestions}
-                    onDeleteTag={handleDeleteTag}
-                  />
-                ) : leftPanelView === 'calendar' ? (
-                  <CalendarView
-                    diaries={visibleDiaries}
-                    onSelectDiary={setCurrentDiaryId}
-                    onCreateDiary={handleCreateDiaryForDate}
-                    onChangeDiaryDate={handleChangeDiaryDate}
-                  />
-                ) : (
-                  <TaskList onModalStateChange={setHasTaskListModalOpen} />
-                )}
-              </div>
-            )}
-
-            {/* Bottom Section - Always Visible */}
-            <div
-              className={`mt-auto ${
-                isLeftSidebarPinned || isLeftSidebarExpanded
-                  ? 'border-t border-slate-200/40'
-                  : ''
-              }`}
-              style={{ backgroundColor: 'rgba(255, 255, 255, 0.5)' }}
-            >
-              {/* Cloud Sync Status - Expanded View */}
-              {(isLeftSidebarPinned || isLeftSidebarExpanded) && isConfigured && user && (
-                <div className="px-3 py-2" style={{ borderBottom: '1px solid rgba(200, 210, 220, 0.3)' }}>
-                  <CloudSyncStatus
-                    userEmail={user.email ?? null}
-                    onRetry={handleRetrySync}
-                    onSwitchAccount={handleSwitchAccount}
-                    onLogout={handleLogout}
-                  />
-                </div>
-              )}
-              
-              {/* Cloud Sync Status and Settings - Collapsed View (Icon Only) */}
-              {!(isLeftSidebarPinned || isLeftSidebarExpanded) && (
-                <div className="flex flex-col items-center gap-2 py-2">
-                  {isConfigured && user && (
-                    <CloudSyncStatus
-                      userEmail={user.email ?? null}
-                      onRetry={handleRetrySync}
-                      onSwitchAccount={handleSwitchAccount}
-                      onLogout={handleLogout}
-                      compact
-                    />
-                  )}
-                  <button
-                    onClick={() => setIsLongTermIdeasOpen(true)}
-                    className="p-2 rounded-xl transition-all duration-200 active:scale-95"
-                    style={{
-                      color: 'var(--aurora-secondary)',
-                      backgroundColor: 'transparent'
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = 'rgba(14, 165, 233, 0.15)';
-                      e.currentTarget.style.color = 'var(--aurora-accent)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = 'transparent';
-                      e.currentTarget.style.color = 'var(--aurora-secondary)';
-                    }}
-                    title={t('Long-term Ideas')}
-                  >
-                    <BookOpen size={16} />
-                  </button>
-                  <button
-                    onClick={handleOpenTemplateDiary}
-                    className="p-2 rounded-xl transition-all duration-200 active:scale-95"
-                    style={{
-                      color: 'var(--aurora-secondary)',
-                      backgroundColor: 'transparent'
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = 'rgba(14, 165, 233, 0.15)';
-                      e.currentTarget.style.color = 'var(--aurora-accent)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = 'transparent';
-                      e.currentTarget.style.color = 'var(--aurora-secondary)';
-                    }}
-                    title={t('Diary Template')}
-                  >
-                    <FileText size={16} />
-                  </button>
-                  <button
-                    onClick={() => setIsSettingsOpen(true)}
-                    className="p-2 rounded-xl transition-all duration-200 active:scale-95"
-                    style={{
-                      color: 'var(--aurora-secondary)',
-                      backgroundColor: 'transparent'
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = 'rgba(14, 165, 233, 0.15)';
-                      e.currentTarget.style.color = 'var(--aurora-accent)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = 'transparent';
-                      e.currentTarget.style.color = 'var(--aurora-secondary)';
-                    }}
-                    title={t('Settings')}
-                  >
-                    <Settings size={16} />
-                  </button>
-                </div>
-              )}
-              
-              {/* Settings and Pin/Unpin Buttons - 弥散光强调色 */}
-              {(isLeftSidebarPinned || isLeftSidebarExpanded) && (
-                <div className="p-2 flex justify-between items-center">
-                  <button
-                    onClick={() => setIsLongTermIdeasOpen(true)}
-                    className="p-2 rounded-xl transition-all duration-200 active:scale-95"
-                    style={{
-                      color: 'var(--aurora-secondary)',
-                      backgroundColor: 'transparent'
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = 'rgba(14, 165, 233, 0.15)';
-                      e.currentTarget.style.color = 'var(--aurora-accent)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = 'transparent';
-                      e.currentTarget.style.color = 'var(--aurora-secondary)';
-                    }}
-                    title={t('Long-term Ideas')}
-                  >
-                    <BookOpen size={16} />
-                  </button>
-                  <button
-                    onClick={handleOpenTemplateDiary}
-                    className="p-2 rounded-xl transition-all duration-200 active:scale-95"
-                    style={{
-                      color: 'var(--aurora-secondary)',
-                      backgroundColor: 'transparent'
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = 'rgba(14, 165, 233, 0.15)';
-                      e.currentTarget.style.color = 'var(--aurora-accent)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = 'transparent';
-                      e.currentTarget.style.color = 'var(--aurora-secondary)';
-                    }}
-                    title={t('Diary Template')}
-                  >
-                    <FileText size={16} />
-                  </button>
-                  <button
-                    onClick={() => setIsSettingsOpen(true)}
-                    className="p-2 rounded-xl transition-all duration-200 active:scale-95"
-                    style={{
-                      color: 'var(--aurora-secondary)',
-                      backgroundColor: 'transparent'
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = 'rgba(14, 165, 233, 0.15)';
-                      e.currentTarget.style.color = 'var(--aurora-accent)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = 'transparent';
-                      e.currentTarget.style.color = 'var(--aurora-secondary)';
-                    }}
-                    title={t('Settings')}
-                  >
-                    <Settings size={16} />
-                  </button>
-                  <button
-                    onClick={() => setIsLeftSidebarPinned(!isLeftSidebarPinned)}
-                    className="p-2 rounded-xl transition-all duration-200 active:scale-95"
-                    style={{
-                      color: 'var(--aurora-secondary)',
-                      backgroundColor: 'transparent'
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = 'rgba(14, 165, 233, 0.15)';
-                      e.currentTarget.style.color = 'var(--aurora-accent)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = 'transparent';
-                      e.currentTarget.style.color = 'var(--aurora-secondary)';
-                    }}
-                    title={isLeftSidebarPinned ? t('Unpin') : t('Pin')}
-                  >
-                    {isLeftSidebarPinned ? <Lock size={16} /> : <LockOpen size={16} />}
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
+          <DesktopLeftSidebar
+            isPinned={isLeftSidebarPinned}
+            isExpanded={isLeftSidebarExpanded}
+            hasTaskListModalOpen={hasTaskListModalOpen}
+            leftPanelView={leftPanelView}
+            folders={folders}
+            visibleDiaries={ordinaryDiaries}
+            selectedFolderId={selectedFolderId}
+            selectedTags={selectedTags}
+            showCloudStatus={isConfigured && Boolean(user)}
+            userEmail={user?.email ?? null}
+            onExpandChange={setIsLeftSidebarExpanded}
+            onPinnedChange={setIsLeftSidebarPinned}
+            onPanelViewChange={setLeftPanelView}
+            onCreateFolder={handleCreateFolder}
+            onUpdateFolder={handleUpdateFolder}
+            onDeleteFolder={deleteFolder}
+            onMoveDiary={moveDiary}
+            canMoveDiary={canMoveDiaryToFolder}
+            onSelectFolder={setSelectedFolderId}
+            onSelectTag={handleSelectTag}
+            onClearTags={handleClearTags}
+            onRenameTag={handleRenameTag}
+            onMergeTags={handleMergeTags}
+            onApplyTagMergeSuggestions={handleApplyTagMergeSuggestions}
+            onDeleteTag={handleDeleteTag}
+            onSelectDiary={handleSelectDiary}
+            onCreateDiary={handleCreateDiaryForDate}
+            onChangeDiaryDate={handleChangeDiaryDate}
+            onTaskModalStateChange={setHasTaskListModalOpen}
+            onRetrySync={handleRetrySync}
+            onSwitchAccount={handleSwitchAccount}
+            onLogout={handleLogout}
+            onOpenLongTermIdeas={() => setIsLongTermIdeasOpen(true)}
+            onOpenTemplateDiary={handleOpenTemplateDiary}
+            onOpenSettings={() => setIsSettingsOpen(true)}
+          />
 
           {/* 中间日记列表 - 毛玻璃材质 */}
           <div className="w-80 flex-shrink-0">
             <DiaryList
                   diaries={filteredDiaries}
               currentDiaryId={currentDiaryId}
-              onSelectDiary={setCurrentDiaryId}
+              onSelectDiary={handleSelectDiary}
               onCreateDiary={handleCreateDiary}
               onOpenTemplateDiary={handleOpenTemplateDiary}
               onDeleteDiary={deleteDiary}
@@ -763,6 +500,7 @@ export const AppLayout: React.FC = () => {
               onSearch={searchDiaries}
               selectedFolderId={selectedFolderId}
               folders={folders}
+              unreadAutoAnalysisIds={unreadDiaryIds}
             />
           </div>
 
@@ -775,12 +513,20 @@ export const AppLayout: React.FC = () => {
                   diary={currentDiary}
                   wordCount={wordCount}
                   onTitleChange={handleTitleChange}
-                  onTagsChange={(tags) => updateDiary(currentDiaryId!, { tags: normalizeDiaryTags(tags) })}
-                  onAnalyze={() => setIsAnalysisOpen(true)}
+                  onTagsChange={(tags) => {
+                    if (currentDiary && isLongTermMasterDiary(currentDiary)) return;
+                    updateDiary(currentDiaryId!, { tags: normalizeDiaryTags(tags) });
+                  }}
+                  onAnalyze={handleOpenAnalysis}
                   onExport={() => openExportModal('current')}
                   AnalyzeIcon={Zap}
+                  hasUnreadAutoAnalysis={canUseAiReview && currentDiaryId ? unreadDiaryIds.has(currentDiaryId) : false}
+                  showAiReview={canUseAiReview}
                 />
                 <div className="flex-1 overflow-hidden flex flex-col">
+                  {isCurrentLongTermMaster && (
+                    <LongTermTaskDocumentGuidePanel />
+                  )}
                   {navigatingFromIdea && (
                     <ReturnToLongTermIdeasPanel onReturn={handleReturnToLongTermIdeas} />
                   )}
@@ -789,6 +535,8 @@ export const AppLayout: React.FC = () => {
                     onChange={handleContentChange}
                     editable={true}
                     diaryId={currentDiaryId || undefined}
+                    onEnsureTaskDocument={handleEnsureTaskDocument}
+                    onNavigateTaskDocument={handleNavigateTaskDocument}
                     highlightRange={highlightRange}
                     contentRightPanel={
                       showTableOfContents ? (
@@ -970,18 +718,29 @@ export const AppLayout: React.FC = () => {
                       wordCount={wordCount}
                       isMobile
                       onTitleChange={handleTitleChange}
-                      onTagsChange={(tags) => updateDiary(currentDiaryId!, { tags: normalizeDiaryTags(tags) })}
-                      onAnalyze={() => setIsAnalysisOpen(true)}
+                      onTagsChange={(tags) => {
+                        if (currentDiary && isLongTermMasterDiary(currentDiary)) return;
+                        updateDiary(currentDiaryId!, { tags: normalizeDiaryTags(tags) });
+                      }}
+                      onAnalyze={handleOpenAnalysis}
                       onExport={() => openExportModal('current')}
                       AnalyzeIcon={Zap}
+                      hasUnreadAutoAnalysis={canUseAiReview && currentDiaryId ? unreadDiaryIds.has(currentDiaryId) : false}
+                      showAiReview={canUseAiReview}
                     />
                     
                     {/* 编辑器内容 */}
                     <div className="flex-1 overflow-auto">
+                      {isCurrentLongTermMaster && (
+                        <LongTermTaskDocumentGuidePanel />
+                      )}
                       <Editor
                         content={diaryContent}
                         onChange={handleContentChange}
                         editable={true}
+                        diaryId={currentDiaryId || undefined}
+                        onEnsureTaskDocument={handleEnsureTaskDocument}
+                        onNavigateTaskDocument={handleNavigateTaskDocument}
                       />
                     </div>
                     
@@ -1043,7 +802,7 @@ export const AppLayout: React.FC = () => {
                     diaries={filteredDiaries}
                     currentDiaryId={currentDiaryId}
                     onSelectDiary={(id) => {
-                      setCurrentDiaryId(id);
+                      handleSelectDiary(id);
                       setCurrentView('editor');
                     }}
                     onCreateDiary={handleCreateDiary}
@@ -1054,6 +813,7 @@ export const AppLayout: React.FC = () => {
                     onSearch={searchDiaries}
                     selectedFolderId={selectedFolderId}
                     folders={folders}
+                    unreadAutoAnalysisIds={unreadDiaryIds}
                   />
                 </div>
               </div>
@@ -1122,7 +882,7 @@ export const AppLayout: React.FC = () => {
             </div>
             
             {/* 侧边栏内容 */}
-            <div className="flex-1 overflow-auto">
+            <div className="min-h-0 flex-1 overflow-auto">
               {leftPanelView === 'folders' ? (
                 <FolderTree
                   folders={folders}
@@ -1130,6 +890,7 @@ export const AppLayout: React.FC = () => {
                   onUpdateFolder={handleUpdateFolder}
                   onDeleteFolder={deleteFolder}
                   onMoveDiary={moveDiary}
+                  canMoveDiary={canMoveDiaryToFolder}
                   selectedFolderId={selectedFolderId}
                   onSelectFolder={(id) => {
                     setSelectedFolderId(id);
@@ -1138,7 +899,7 @@ export const AppLayout: React.FC = () => {
                 />
               ) : leftPanelView === 'tags' ? (
                 <TagPanel
-                  diaries={visibleDiaries}
+                  diaries={ordinaryDiaries}
                   selectedTags={selectedTags}
                   onSelectTag={handleSelectTag}
                   onClearTags={handleClearTags}
@@ -1149,9 +910,9 @@ export const AppLayout: React.FC = () => {
                 />
               ) : leftPanelView === 'calendar' ? (
                 <CalendarView
-                  diaries={visibleDiaries}
+                  diaries={ordinaryDiaries}
                   onSelectDiary={(id) => {
-                    setCurrentDiaryId(id);
+                    handleSelectDiary(id);
                     setCurrentView('editor');
                     setIsSidebarOpen(false);
                   }}
@@ -1186,6 +947,15 @@ export const AppLayout: React.FC = () => {
       )}
 
       {/* 模态框 */}
+      {activeTaskDocument && (
+        <TaskDocumentModal
+          diary={activeTaskDocument}
+          onClose={handleCloseTaskDocument}
+          onTitleChange={handleTaskDocumentTitleChange}
+          onContentChange={handleTaskDocumentContentChange}
+        />
+      )}
+
       <ExportModal
         isOpen={isExportModalOpen}
         onClose={() => setIsExportModalOpen(false)}
@@ -1226,9 +996,12 @@ export const AppLayout: React.FC = () => {
         onClose={() => setIsAnalysisOpen(false)}
         onAppendToDiary={handleAppendToDiary}
         onUpdateDiary={updateDiary}
+        onCreateLongTermIdea={addIdea}
+        enabled={canUseAiReview}
       />
 
       <ToastHost />
+      <DesktopUpdateNotice />
 
       <LongTermIdeasDrawer
         isOpen={isLongTermIdeasOpen}

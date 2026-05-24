@@ -1,8 +1,9 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { useAppleReminders } from '../../hooks/useAppleReminders';
 import { t } from '../../i18n';
 import { AppleReminderItem } from './AppleReminderItem';
+import type { AppleReminder } from '../../types';
 
 interface AppleRemindersPanelProps {
   compact?: boolean;
@@ -11,8 +12,19 @@ interface AppleRemindersPanelProps {
 
 export const AppleRemindersPanel: React.FC<AppleRemindersPanelProps> = ({ compact = false, limit }) => {
   const options = useMemo(() => ({ scope: 'all-open' as const }), []);
-  const { reminders, status, loading, error, refresh } = useAppleReminders(options);
+  const { reminders, status, loading, error, refresh, setReminderCompleted } = useAppleReminders(options);
+  const [completingReminderId, setCompletingReminderId] = useState<string | null>(null);
   const visibleReminders = typeof limit === 'number' ? reminders.slice(0, limit) : reminders;
+
+  const handleCompleteReminder = async (reminder: AppleReminder) => {
+    if (completingReminderId) return;
+    setCompletingReminderId(reminder.externalId);
+    try {
+      await setReminderCompleted(reminder, true);
+    } finally {
+      setCompletingReminderId(null);
+    }
+  };
 
   if (status === 'unsupported') {
     return (
@@ -31,7 +43,7 @@ export const AppleRemindersPanel: React.FC<AppleRemindersPanelProps> = ({ compac
   }
 
   return (
-    <div className={compact ? 'rounded-2xl border border-sky-100 bg-sky-50/50 p-3' : 'flex min-h-0 flex-1 flex-col'}>
+    <div className={compact ? 'rounded-2xl border border-sky-100 bg-sky-50/50 p-3' : 'flex h-full min-h-0 flex-1 flex-col'}>
       <div className="mb-2 flex items-center justify-between gap-2">
         <div>
           <h3 className="text-sm font-semibold text-primary-900">{t('Apple Reminders')}</h3>
@@ -41,7 +53,7 @@ export const AppleRemindersPanel: React.FC<AppleRemindersPanelProps> = ({ compac
         </div>
         <button
           type="button"
-          onClick={() => void refresh()}
+          onClick={() => void refresh(true)}
           className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/80 text-primary-500 shadow-sm transition-colors hover:text-sky-500"
           title={t('Refresh')}
           aria-label={t('Refresh')}
@@ -61,12 +73,14 @@ export const AppleRemindersPanel: React.FC<AppleRemindersPanelProps> = ({ compac
       ) : visibleReminders.length === 0 ? (
         <div className="rounded-xl bg-white/75 p-3 text-sm text-primary-400">{t('No Apple reminders')}</div>
       ) : (
-        <ul className={`space-y-2 ${compact ? '' : 'min-h-0 flex-1 overflow-y-auto pr-1'}`}>
+        <ul className={`space-y-2 ${compact ? '' : 'min-h-0 flex-1 overflow-y-auto pb-24 pr-1'}`}>
           {visibleReminders.map((reminder) => (
             <AppleReminderItem
               key={reminder.externalId}
               reminder={reminder}
               compact={compact}
+              completing={completingReminderId === reminder.externalId}
+              onComplete={handleCompleteReminder}
             />
           ))}
         </ul>
