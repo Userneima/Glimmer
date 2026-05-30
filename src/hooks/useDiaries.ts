@@ -31,9 +31,6 @@ type CreateDiaryOptions = {
   content?: string;
   tags?: string[];
   select?: boolean;
-  isTaskDocument?: boolean;
-  taskDocumentSourceDiaryId?: string;
-  taskDocumentSourceTaskTitle?: string;
 };
 
 export const useDiaries = () => {
@@ -204,13 +201,6 @@ export const useDiaries = () => {
       ...(options?.title !== undefined ? { title: options.title } : {}),
       ...(options?.content !== undefined ? { content: options.content } : {}),
       ...(options?.tags !== undefined ? { tags: options.tags } : {}),
-      ...(options?.isTaskDocument !== undefined ? { isTaskDocument: options.isTaskDocument } : {}),
-      ...(options?.taskDocumentSourceDiaryId !== undefined
-        ? { taskDocumentSourceDiaryId: options.taskDocumentSourceDiaryId }
-        : {}),
-      ...(options?.taskDocumentSourceTaskTitle !== undefined
-        ? { taskDocumentSourceTaskTitle: options.taskDocumentSourceTaskTitle }
-        : {}),
     };
     storage.addDiary(newDiary);
     setDiaries(prev => [newDiary, ...prev]);

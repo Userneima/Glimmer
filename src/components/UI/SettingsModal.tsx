@@ -37,6 +37,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     setHeadingSettings(resetEditorHeadingSettings());
   };
 
+  const headingControls: Array<{ key: keyof EditorHeadingSettings; label: string; min: number; max: number }> = [
+    { key: 'h1', label: '标题 1', min: 1.35, max: 2.4 },
+    { key: 'h2', label: '标题 2', min: 1.15, max: 2 },
+    { key: 'h3', label: '标题 3', min: 1, max: 1.7 },
+    { key: 'h4', label: '标题 4', min: 0.95, max: 1.45 },
+    { key: 'h5', label: '标题 5', min: 0.9, max: 1.25 },
+    { key: 'h6', label: '标题 6', min: 0.85, max: 1.15 },
+  ];
+
   const renderHeadingSlider = (key: keyof EditorHeadingSettings, label: string, min: number, max: number) => (
     <label className="block rounded-xl border border-slate-200/80 bg-white/70 px-3 py-3">
       <div className="mb-2 flex items-center justify-between gap-3">
@@ -156,7 +165,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <h3 className="text-sm font-semibold text-slate-700">编辑器标题字号</h3>
-                  <p className="mt-1 text-xs text-slate-500">只影响正文里的 H1 / H2 / H3，不影响页面标题。</p>
+                  <p className="mt-1 text-xs text-slate-500">影响正文里的 H1-H6，不影响页面标题。</p>
                 </div>
                 <button
                   type="button"
@@ -166,10 +175,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   恢复默认
                 </button>
               </div>
-              <div className="grid grid-cols-1 gap-3">
-                {renderHeadingSlider('h1', '标题 1', 1.35, 2.4)}
-                {renderHeadingSlider('h2', '标题 2', 1.15, 2)}
-                {renderHeadingSlider('h3', '标题 3', 1, 1.7)}
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                {headingControls.map(({ key, label, min, max }) => renderHeadingSlider(key, label, min, max))}
               </div>
               <div className="rounded-2xl border border-slate-200/80 bg-gradient-to-br from-white via-sky-50/35 to-white p-4 shadow-sm">
                 <div className="mb-3 flex items-center justify-between">
@@ -204,6 +211,24 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <p className="mt-2 text-sm leading-7 text-slate-500">
                     这个层级适合日记里的小节，不宜比正文大太多。
                   </p>
+                  <div
+                    className="mt-4 font-semibold text-slate-900"
+                    style={{ fontSize: `${headingSettings.h4}em`, lineHeight: 1.34 }}
+                  >
+                    标题 4：执行细节
+                  </div>
+                  <div
+                    className="mt-3 font-semibold text-slate-700"
+                    style={{ fontSize: `${headingSettings.h5}em`, lineHeight: 1.38 }}
+                  >
+                    标题 5：检查点
+                  </div>
+                  <div
+                    className="mt-3 font-semibold text-slate-500"
+                    style={{ fontSize: `${headingSettings.h6}em`, lineHeight: 1.42 }}
+                  >
+                    标题 6：备注
+                  </div>
                 </div>
               </div>
             </div>

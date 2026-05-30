@@ -7,7 +7,7 @@
 - `storage.ts` 是本地持久化总入口。
 - `cloud.ts` 是 Supabase 读写与 schema fallback 总入口。
 - `syncManager.ts` / `syncQueue.ts` 处理云同步节奏。
-- `diarySystem.ts`、`diaryTemplate.ts`、`taskDocument.ts` 定义系统日记、模板日记、任务文档规则。
+- `diarySystem.ts`、`diaryTemplate.ts` 定义系统日记、模板日记规则。
 - `export.ts` 负责导出格式，不要在 UI 层复制导出逻辑。
 
 ## 边界

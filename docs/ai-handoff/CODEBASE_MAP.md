@@ -27,8 +27,8 @@
 - 任务：`src/components/Sidebar/TaskList.tsx`、`src/hooks/useTasks.ts`
 - 编辑器：`src/components/Editor/Editor.tsx`、`src/components/Editor/EditorToolbar.tsx`
 - 表格交互：`src/components/Editor/TableBubbleMenu.tsx`
-- AI 分析与回看：`src/components/Analysis/AnalysisPanel.tsx`、`src/utils/diaryReview.ts`
-- 自动分析/标签：`src/hooks/useAutoDiaryAnalysis.ts`、`src/hooks/useAutoDiaryTags.ts`
+- 回看数据与导出：`src/utils/diaryReview.ts`
+- 自动标签：`src/hooks/useAutoDiaryTags.ts`
 - 本地存储：`src/utils/storage.ts`
 - 云同步：`src/utils/cloud.ts`、`src/utils/syncManager.ts`、`src/utils/syncQueue.ts`
 - 导入导出：`src/components/UI/ImportModal.tsx`、`src/components/UI/ExportModal.tsx`、`src/utils/export.ts`

@@ -11,9 +11,6 @@ export interface Diary {
   updatedAt: number;
   isLongTermMaster?: boolean;
   isTemplateDiary?: boolean;
-  isTaskDocument?: boolean;
-  taskDocumentSourceDiaryId?: string;
-  taskDocumentSourceTaskTitle?: string;
 }
 
 export interface Folder {

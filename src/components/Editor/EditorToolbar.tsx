@@ -1,5 +1,6 @@
 import React, { useCallback } from 'react';
 import { Editor, useEditorState } from '@tiptap/react';
+import type { Node as ProseMirrorNode } from 'prosemirror-model';
 import {
   Heading1,
   Heading2,
@@ -13,46 +14,105 @@ import {
   Minus,
   Undo,
   Redo,
-  Zap,
   Indent,
   Outdent,
-  FileText,
+  ListEnd,
+  ListRestart,
 } from 'lucide-react';
 
 import { t } from '../../i18n';
 
 interface EditorToolbarProps {
   editor: Editor;
-  onAnalyze?: () => void;
-  onOpenTaskDocument?: () => void;
-  showTaskDocumentButton?: boolean;
 }
 
 type ToolbarButtonProps = {
   onClick: () => void;
   isActive?: boolean;
+  disabled?: boolean;
   children: React.ReactNode;
   title: string;
   className?: string;
 };
 
-const ToolbarButton: React.FC<ToolbarButtonProps> = ({ onClick, isActive, children, title, className = '' }) => (
+type OrderedListInfo = {
+  node: ProseMirrorNode;
+  pos: number;
+  start: number;
+  itemCount: number;
+};
+
+const getOrderedListAtSelection = (editor: Editor): OrderedListInfo | null => {
+  const { $from } = editor.state.selection;
+
+  for (let depth = $from.depth; depth > 0; depth -= 1) {
+    const node = $from.node(depth);
+    if (node.type.name !== 'orderedList') continue;
+
+    return {
+      node,
+      pos: $from.before(depth),
+      start: Number(node.attrs.start || 1),
+      itemCount: node.childCount,
+    };
+  }
+
+  return null;
+};
+
+const getPreviousOrderedList = (editor: Editor, currentListPos: number): OrderedListInfo | null => {
+  let previous: OrderedListInfo | null = null;
+
+  editor.state.doc.descendants((node, pos) => {
+    if (pos >= currentListPos) return false;
+    if (node.type.name === 'orderedList') {
+      previous = {
+        node,
+        pos,
+        start: Number(node.attrs.start || 1),
+        itemCount: node.childCount,
+      };
+    }
+    return true;
+  });
+
+  return previous;
+};
+
+const setOrderedListStart = (editor: Editor, start: number) => {
+  const currentList = getOrderedListAtSelection(editor);
+  if (!currentList) return;
+
+  const safeStart = Math.max(1, Math.trunc(start));
+  const { state, view } = editor;
+  view.dispatch(
+    state.tr.setNodeMarkup(currentList.pos, undefined, {
+      ...currentList.node.attrs,
+      start: safeStart,
+    })
+  );
+  view.focus();
+};
+
+const ToolbarButton: React.FC<ToolbarButtonProps> = ({ onClick, isActive, disabled = false, children, title, className = '' }) => (
   <button
+    type="button"
     onClick={onClick}
     title={title}
-    className={`p-2 rounded-lg transition-colors duration-200 active:scale-95 flex items-center justify-center w-10 h-10 ${className}`}
+    disabled={disabled}
+    className={`p-2 rounded-lg transition-colors duration-200 active:scale-95 flex items-center justify-center w-10 h-10 ${disabled ? 'cursor-not-allowed opacity-40 active:scale-100' : ''} ${className}`}
     style={{
       backgroundColor: isActive ? 'rgba(14, 165, 233, 0.15)' : 'transparent',
       color: isActive ? 'var(--aurora-accent)' : 'var(--aurora-secondary)'
     }}
     onMouseEnter={(e) => {
-      if (!isActive) {
+      if (!isActive && !disabled) {
         e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.4)';
         e.currentTarget.style.color = 'var(--aurora-accent)';
       }
     }}
     onMouseLeave={(e) => {
-      if (!isActive) {
+      if (!isActive && !disabled) {
         e.currentTarget.style.backgroundColor = 'transparent';
         e.currentTarget.style.color = 'var(--aurora-secondary)';
       }
@@ -62,15 +122,19 @@ const ToolbarButton: React.FC<ToolbarButtonProps> = ({ onClick, isActive, childr
   </button>
 );
 
-export const EditorToolbar: React.FC<EditorToolbarProps> = ({
-  editor,
-  onAnalyze,
-  onOpenTaskDocument,
-  showTaskDocumentButton = false,
-}) => {
-  const isInTaskItem = useEditorState({
+export const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor }) => {
+  const orderedListState = useEditorState({
     editor,
-    selector: ({ editor: currentEditor }) => currentEditor.isActive('taskItem'),
+    selector: ({ editor: currentEditor }) => {
+      const currentList = getOrderedListAtSelection(currentEditor);
+      if (!currentList) return null;
+      const previousList = getPreviousOrderedList(currentEditor, currentList.pos);
+
+      return {
+        start: currentList.start,
+        continuationStart: previousList ? previousList.start + previousList.itemCount : null,
+      };
+    },
   });
 
   const maxUsedHeading = useEditorState({
@@ -174,6 +238,29 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
       >
         <ListOrdered size={18} strokeWidth={1.75} />
       </ToolbarButton>
+      {orderedListState && (
+        <div className="flex rounded-lg border border-slate-200/70 bg-white/35">
+          <ToolbarButton
+            onClick={() => {
+              if (!orderedListState.continuationStart) return;
+              setOrderedListStart(editor, orderedListState.continuationStart);
+            }}
+            disabled={!orderedListState.continuationStart}
+            title={`${t('Continue ordered list')}${orderedListState.continuationStart ? ` (${orderedListState.continuationStart})` : ''}`}
+            className="rounded-r-none"
+          >
+            <ListEnd size={18} strokeWidth={1.75} />
+          </ToolbarButton>
+          <ToolbarButton
+            onClick={() => setOrderedListStart(editor, 1)}
+            disabled={orderedListState.start === 1}
+            title={t('Restart ordered list')}
+            className="rounded-l-none border-l border-slate-200/70"
+          >
+            <ListRestart size={18} strokeWidth={1.75} />
+          </ToolbarButton>
+        </div>
+      )}
       <ToolbarButton
         onClick={() => editor.chain().focus().toggleTaskList().run()}
         isActive={editor.isActive('taskList')}
@@ -254,28 +341,6 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
       >
         <Minus size={18} strokeWidth={1.75} />
       </ToolbarButton>
-
-      {showTaskDocumentButton && isInTaskItem && onOpenTaskDocument && (
-        <button
-          type="button"
-          onClick={onOpenTaskDocument}
-          title="打开任务文档"
-          className="ml-2 inline-flex h-10 items-center justify-center gap-2 rounded-apple-lg border border-sky-200 bg-sky-50 px-3 text-sm font-semibold text-sky-600 shadow-sm transition-all duration-200 hover:border-sky-300 hover:bg-sky-100 active:scale-95"
-        >
-          <FileText size={16} strokeWidth={1.9} />
-          打开任务文档
-        </button>
-      )}
-
-      {onAnalyze && (
-        <ToolbarButton
-          onClick={onAnalyze}
-          title={t('Analyze')}
-          className="ml-auto"
-        >
-          <Zap size={18} strokeWidth={1.75} />
-        </ToolbarButton>
-      )}
 
       </div>
     </>

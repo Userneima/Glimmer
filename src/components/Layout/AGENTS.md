@@ -11,8 +11,8 @@
 ## 边界
 
 - 不要把编辑器细节、日历细节、任务详情 UI 直接写回 `AppLayout.tsx`。
-- 系统日记相关判断必须复用 `diarySystem` / `taskDocument` 工具，不要用标题字符串猜测。
-- `LONG_TERM_MASTER_ID`、`TEMPLATE_DIARY_ID`、任务文档 ID 绑定逻辑不能随意改。
+- 系统日记相关判断必须复用 `diarySystem` 工具，不要用标题字符串猜测。
+- `LONG_TERM_MASTER_ID`、`TEMPLATE_DIARY_ID` 不能随意改。
 - 桌面与移动布局可以共享状态，但不要为了一个端的样式破坏另一个端的主流程。
 
 ## 验证
