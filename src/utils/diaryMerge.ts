@@ -20,6 +20,16 @@ export const mergeDiariesPreferSafeLocal = (local: Diary[], remote: Diary[]) => 
       return;
     }
 
+    if (
+      ld &&
+      isLongTermMasterDiary(rd) &&
+      isBlankHtmlContent(ld.content) &&
+      !isBlankHtmlContent(rd.content)
+    ) {
+      map.set(rd.id, rd);
+      return;
+    }
+
     if (!ld || remoteUpdatedAt >= localUpdatedAt) {
       map.set(rd.id, rd);
     }

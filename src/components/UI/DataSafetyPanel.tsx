@@ -28,8 +28,6 @@ const getCounts = (data: DataSnapshot) => ({
   tasks: data.tasks.length,
   tags: data.tags.length,
   longTermIdeas: data.longTermIdeas.length,
-  analyses: data.analyses.length,
-  autoAnalysisState: Object.keys(data.autoAnalysisState).length,
 });
 
 const getBackupCounts = (backup: Backup) => ({
@@ -38,8 +36,6 @@ const getBackupCounts = (backup: Backup) => ({
   tasks: backup.tasks?.length ?? 0,
   tags: backup.tags?.length ?? 0,
   longTermIdeas: backup.longTermIdeas?.length ?? 0,
-  analyses: backup.analyses?.length ?? 0,
-  autoAnalysisState: Object.keys(backup.autoAnalysisState ?? {}).length,
 });
 
 const StatCard: React.FC<{ label: string; value: number | string; muted?: string }> = ({ label, value, muted }) => (
@@ -198,8 +194,6 @@ export const DataSafetyPanel: React.FC = () => {
           <StatCard label="任务" value={counts.tasks} />
           <StatCard label="标签" value={counts.tags} />
           <StatCard label="长期想法" value={counts.longTermIdeas} />
-          <StatCard label="AI 分析" value={counts.analyses} />
-          <StatCard label="自动分析状态" value={counts.autoAnalysisState} />
           <StatCard label="本地快照" value={backups.length} />
         </div>
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200/80 bg-white/70 px-4 py-3">
@@ -254,8 +248,6 @@ export const DataSafetyPanel: React.FC = () => {
                       <QueueBadge>任务 {backupCounts.tasks}</QueueBadge>
                       <QueueBadge>标签 {backupCounts.tags}</QueueBadge>
                       <QueueBadge>长期想法 {backupCounts.longTermIdeas}</QueueBadge>
-                      <QueueBadge>AI {backupCounts.analyses}</QueueBadge>
-                      <QueueBadge>自动状态 {backupCounts.autoAnalysisState}</QueueBadge>
                     </div>
                   </div>
                   <button

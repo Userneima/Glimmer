@@ -42,8 +42,7 @@ const isUserDiary = (diary: Diary) =>
   diary.id !== LONG_TERM_MASTER_ID &&
   diary.id !== TEMPLATE_DIARY_ID &&
   !diary.isLongTermMaster &&
-  !diary.isTemplateDiary &&
-  !diary.isTaskDocument;
+  !diary.isTemplateDiary;
 
 export const stripDiaryHtml = (html: string) => {
   if (typeof document === 'undefined') {

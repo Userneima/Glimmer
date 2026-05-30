@@ -35,7 +35,6 @@ interface DiaryListProps {
   onSearch: (query: string) => void;
   selectedFolderId: string | null;
   folders: DiaryFolder[];
-  unreadAutoAnalysisIds?: ReadonlySet<string>;
 }
 
 export const DiaryList: React.FC<DiaryListProps> = ({
@@ -50,7 +49,6 @@ export const DiaryList: React.FC<DiaryListProps> = ({
   onSearch,
   selectedFolderId,
   folders,
-  unreadAutoAnalysisIds,
 }) => {
   const [sortMode, setSortMode] = useState<DiarySortMode>(() => {
     const saved = localStorage.getItem(DIARY_SORT_MODE_KEY);
@@ -325,13 +323,6 @@ export const DiaryList: React.FC<DiaryListProps> = ({
                 e.dataTransfer.setData('application/x-diary-id', diary.id);
               }}
             >
-              {unreadAutoAnalysisIds?.has(diary.id) && (
-                <span
-                  className="absolute right-3 top-3 h-2.5 w-2.5 rounded-full bg-red-500 shadow-[0_0_0_4px_rgba(239,68,68,0.12)]"
-                  title={t('New AI analysis ready')}
-                  aria-label={t('New AI analysis ready')}
-                />
-              )}
               <div className="flex flex-col">
                 <div className="flex items-center justify-between mb-1.5">
                   <h3 className="font-semibold truncate tracking-tight flex-1" style={{ color: 'var(--aurora-primary)' }}>

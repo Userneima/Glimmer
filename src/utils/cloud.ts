@@ -40,11 +40,6 @@ function shouldRetryDiaryUpsertWithCompositePk(error: PostgrestError): boolean {
   );
 }
 
-function shouldRetryDiaryUpsertWithoutTaskDocumentFields(error: PostgrestError): boolean {
-  const blob = `${error.code ?? ''} ${error.message} ${error.details} ${error.hint}`.toLowerCase();
-  return error.code === '42703' || blob.includes('task_document');
-}
-
 type DiaryRow = {
   id: string;
   user_id: string;
@@ -54,9 +49,6 @@ type DiaryRow = {
   tags?: string[] | null;
   created_at: number | string;
   updated_at?: number | string | null;
-  is_task_document?: boolean | null;
-  task_document_source_diary_id?: string | null;
-  task_document_source_task_title?: string | null;
 };
 
 // Convert DB timestamp (bigint ms or ISO string) to JS milliseconds
@@ -172,13 +164,10 @@ const toDiary = (row: DiaryRow): Diary => {
     tags: row.tags ?? [],
     createdAt,
     updatedAt: toMs(row.updated_at, createdAt),
-    isTaskDocument: row.is_task_document ?? undefined,
-    taskDocumentSourceDiaryId: row.task_document_source_diary_id ?? undefined,
-    taskDocumentSourceTaskTitle: row.task_document_source_task_title ?? undefined,
   };
 };
 
-const toDiaryRow = (userId: string, diary: Diary, includeTaskDocumentFields = true): DiaryRow => {
+const toDiaryRow = (userId: string, diary: Diary): DiaryRow => {
   const now = Date.now();
   const createdAt = Number.isFinite(diary.createdAt) ? Math.trunc(diary.createdAt) : now;
   const updatedAt = Number.isFinite(diary.updatedAt) ? Math.trunc(diary.updatedAt) : createdAt;
@@ -199,14 +188,6 @@ const toDiaryRow = (userId: string, diary: Diary, includeTaskDocumentFields = tr
     created_at: createdAt,
     updated_at: updatedAt,
   };
-
-  if (includeTaskDocumentFields) {
-    row.is_task_document = Boolean(diary.isTaskDocument);
-    row.task_document_source_diary_id = diary.taskDocumentSourceDiaryId && isUuidText(diary.taskDocumentSourceDiaryId)
-      ? diary.taskDocumentSourceDiaryId
-      : null;
-    row.task_document_source_task_title = diary.taskDocumentSourceTaskTitle ?? null;
-  }
 
   return row;
 };
@@ -490,16 +471,9 @@ export const cloud = {
   async insertDiary(userId: string, diary: Diary): Promise<void> {
     const supabase = requireSupabase();
     const row = toDiaryRow(userId, diary);
-    let { error } = await supabase
+    const { error } = await supabase
       .from('diaries')
       .insert(row);
-
-    if (error && shouldRetryDiaryUpsertWithoutTaskDocumentFields(error)) {
-      const legacyRow = toDiaryRow(userId, diary, false);
-      ({ error } = await supabase
-        .from('diaries')
-        .insert(legacyRow));
-    }
 
     if (error) throw error;
   },
@@ -530,15 +504,6 @@ export const cloud = {
 
     if (error && shouldRetryDiaryUpsertWithCompositePk(error)) {
       ({ error } = await supabase.from('diaries').upsert(row, { onConflict: 'user_id,id' }));
-    }
-
-    if (error && shouldRetryDiaryUpsertWithoutTaskDocumentFields(error)) {
-      const legacyRow = toDiaryRow(userId, diary, false);
-      ({ error } = await supabase.from('diaries').upsert(legacyRow, { onConflict: 'id' }));
-
-      if (error && shouldRetryDiaryUpsertWithCompositePk(error)) {
-        ({ error } = await supabase.from('diaries').upsert(legacyRow, { onConflict: 'user_id,id' }));
-      }
     }
 
     if (error) throw error;

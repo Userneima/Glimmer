@@ -1,7 +1,6 @@
-import React, { useCallback, useEffect, useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import { Extension } from '@tiptap/core';
-import type { Node as ProseMirrorNode } from 'prosemirror-model';
 import { AllSelection, Plugin, TextSelection } from 'prosemirror-state';
 import { CellSelection, TableMap, cellAround, findTable, isInTable, selectedRect } from 'prosemirror-tables';
 import StarterKit from '@tiptap/starter-kit';
@@ -21,7 +20,6 @@ import { Color } from '@tiptap/extension-color';
 import { EditorToolbar } from './EditorToolbar';
 import { TextBubbleMenu } from './TextBubbleMenu';
 import { TableBubbleMenu } from './TableBubbleMenu';
-import { LONG_TERM_MASTER_ID } from '../../types';
 import { isLikelyMarkdown, markdownToHtml } from '../../utils/markdown';
 
 const CascadeTaskCompletion = Extension.create({
@@ -107,27 +105,12 @@ const CascadeTaskCompletion = Extension.create({
   },
 });
 
-const getTaskItemTitle = (node: ProseMirrorNode) => {
-  let title = '';
-  node.forEach((childNode) => {
-    if (!title && childNode.isTextblock) {
-      title = childNode.textContent.replace(/\s+/g, ' ').trim();
-    }
-  });
-
-  return title || node.textContent.replace(/\s+/g, ' ').trim();
-};
-
 interface EditorProps {
   content: string;
   onChange: (content: string) => void;
   editable?: boolean;
   contentRightPanel?: React.ReactNode;
-  onAnalyze?: () => void;
-  diaryId?: string;
   highlightRange?: { from: number; to: number };
-  onEnsureTaskDocument?: (taskTitle: string, taskDocumentId?: string | null) => string | null;
-  onNavigateTaskDocument?: (taskDocumentId: string) => void;
 }
 
 export const Editor: React.FC<EditorProps> = ({
@@ -135,11 +118,7 @@ export const Editor: React.FC<EditorProps> = ({
   onChange,
   editable = true,
   contentRightPanel,
-  onAnalyze,
-  diaryId,
   highlightRange,
-  onEnsureTaskDocument,
-  onNavigateTaskDocument,
 }) => {
   const CustomTableCell = useMemo(
     () =>
@@ -182,26 +161,6 @@ export const Editor: React.FC<EditorProps> = ({
               parseHTML: (element) => element.style.verticalAlign || null,
               renderHTML: (attributes) =>
                 attributes.verticalAlign ? { style: `vertical-align: ${attributes.verticalAlign};` } : {},
-            },
-          };
-        },
-      }),
-    []
-  );
-
-  const TaskItemWithDocument = useMemo(
-    () =>
-      TaskItem.extend({
-        addAttributes() {
-          return {
-            ...this.parent?.(),
-            taskDocumentId: {
-              default: null,
-              parseHTML: (element) => element.getAttribute('data-task-doc-id'),
-              renderHTML: (attributes) =>
-                attributes.taskDocumentId
-                  ? { 'data-task-doc-id': attributes.taskDocumentId }
-                  : {},
             },
           };
         },
@@ -256,7 +215,7 @@ export const Editor: React.FC<EditorProps> = ({
     CustomTableCell,
     CustomTableHeader,
     TaskList,
-    TaskItemWithDocument.configure({
+    TaskItem.configure({
       nested: true,
     }),
     CascadeTaskCompletion,
@@ -265,7 +224,7 @@ export const Editor: React.FC<EditorProps> = ({
     }),
     TextStyle,
     Color,
-  ], [CustomTableCell, CustomTableHeader, TaskItemWithDocument]);
+  ], [CustomTableCell, CustomTableHeader]);
 
   const editor = useEditor({
     extensions,
@@ -276,9 +235,7 @@ export const Editor: React.FC<EditorProps> = ({
     },
     editorProps: {
       attributes: {
-        class: `prose prose-sm sm:prose lg:prose-lg xl:prose-xl focus:outline-none max-w-none ${
-          diaryId === LONG_TERM_MASTER_ID ? 'task-document-master' : ''
-        }`,
+        class: 'prose prose-sm sm:prose lg:prose-lg xl:prose-xl focus:outline-none max-w-none',
       },
       handlePaste: (_view, event) => {
         const plainText = event.clipboardData?.getData('text/plain') ?? '';
@@ -410,46 +367,6 @@ export const Editor: React.FC<EditorProps> = ({
     },
   });
 
-  const openActiveTaskDocument = useCallback(() => {
-    if (
-      diaryId !== LONG_TERM_MASTER_ID ||
-      !editor ||
-      !onEnsureTaskDocument ||
-      !onNavigateTaskDocument
-    ) {
-      return;
-    }
-
-    const { state, dispatch } = editor.view;
-    const $position = state.selection.$from;
-
-    for (let depth = $position.depth; depth > 0; depth -= 1) {
-      const node = $position.node(depth);
-      if (node.type.name !== 'taskItem') continue;
-
-      const taskTitle = getTaskItemTitle(node);
-      if (!taskTitle) return;
-
-      const existingDocumentId =
-        typeof node.attrs.taskDocumentId === 'string' ? node.attrs.taskDocumentId : null;
-      const taskDocumentId = onEnsureTaskDocument(taskTitle, existingDocumentId);
-      if (!taskDocumentId) return;
-
-      if (!existingDocumentId) {
-        const taskPosition = $position.before(depth);
-        dispatch(
-          state.tr.setNodeMarkup(taskPosition, undefined, {
-            ...node.attrs,
-            taskDocumentId,
-          })
-        );
-      }
-
-      window.setTimeout(() => onNavigateTaskDocument(taskDocumentId), 0);
-      return;
-    }
-  }, [diaryId, editor, onEnsureTaskDocument, onNavigateTaskDocument]);
-
   const editorContentRef = useRef<HTMLDivElement>(null);
 
   // Highlight range effect
@@ -514,12 +431,7 @@ export const Editor: React.FC<EditorProps> = ({
     /* 编辑器主容器 - 毛玻璃风 */
     <div className="flex flex-col h-full" style={{ backgroundColor: 'rgba(255, 255, 255, 0.75)' }} ref={editorContentRef}>
       {editable && (
-        <EditorToolbar
-          editor={editor}
-          onAnalyze={onAnalyze}
-          onOpenTaskDocument={openActiveTaskDocument}
-          showTaskDocumentButton={diaryId === LONG_TERM_MASTER_ID}
-        />
+        <EditorToolbar editor={editor} />
       )}
       {editable && <TextBubbleMenu editor={editor} />}
       {editable && <TableBubbleMenu editor={editor} />}

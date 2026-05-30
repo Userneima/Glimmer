@@ -14,11 +14,7 @@ interface DiaryHeaderProps {
   isMobile?: boolean;
   onTitleChange: (title: string) => void;
   onTagsChange: (tags: string[]) => void;
-  onAnalyze: () => void;
   onExport: () => void;
-  AnalyzeIcon: React.ComponentType<{ size?: number; strokeWidth?: number }>;
-  hasUnreadAutoAnalysis?: boolean;
-  showAiReview?: boolean;
 }
 
 export const DiaryHeader: React.FC<DiaryHeaderProps> = ({
@@ -27,11 +23,7 @@ export const DiaryHeader: React.FC<DiaryHeaderProps> = ({
   isMobile = false,
   onTitleChange,
   onTagsChange,
-  onAnalyze,
   onExport,
-  AnalyzeIcon,
-  hasUnreadAutoAnalysis = false,
-  showAiReview = true,
 }) => {
   const isLongTermMaster = isLongTermMasterDiary(diary);
   const titlePlaceholder = diary.isTemplateDiary ? t('Leave blank to use date only') : t('Untitled');
@@ -87,25 +79,6 @@ export const DiaryHeader: React.FC<DiaryHeaderProps> = ({
             <Download size={16} strokeWidth={1.9} />
             {!isMobile && <span>{t('Export')}</span>}
           </Button>
-          {showAiReview && (
-            <button
-              onClick={onAnalyze}
-              className={
-                (isMobile ? 'h-9 w-9' : 'h-10 w-10') +
-                ' relative inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white/80 text-slate-500 shadow-sm transition-all duration-200 hover:border-sky-200 hover:bg-sky-50 hover:text-sky-600 active:scale-95'
-              }
-              title={t('AI Review')}
-              aria-label={t('AI Review')}
-            >
-              {hasUnreadAutoAnalysis && (
-                <span
-                  className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-red-500 shadow-[0_0_0_4px_rgba(239,68,68,0.16)]"
-                  aria-label={t('New AI analysis ready')}
-                />
-              )}
-              <AnalyzeIcon size={17} strokeWidth={1.9} />
-            </button>
-          )}
         </div>
       </div>
 

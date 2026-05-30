@@ -1,11 +1,9 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { Analytics } from "@vercel/analytics/react";
 import { useDiaries } from '../../hooks/useDiaries';
-import { useAutoDiaryAnalysis } from '../../hooks/useAutoDiaryAnalysis';
 import { useAutoDiaryTags } from '../../hooks/useAutoDiaryTags';
 import { useDiaryTagActions } from '../../hooks/useDiaryTagActions';
 import { useFolders } from '../../hooks/useFolders';
-import { useLongTermIdeas } from '../../hooks/useLongTermIdeas';
 import { useLocalBackup } from '../../hooks/useLocalBackup';
 import { FolderTree } from '../Sidebar/FolderTree';
 import { TagPanel } from '../Sidebar/TagPanel';
@@ -19,9 +17,8 @@ import { ExportModal } from '../UI/ExportModal';
 import { ImportModal } from '../UI/ImportModal';
 import { SettingsModal } from '../UI/SettingsModal';
 import { DesktopUpdateNotice } from '../UI/DesktopUpdateNotice';
-import { BookOpen, Settings, Lock, LockOpen, List, FileText, Menu, X, ChevronLeft, Upload, Download, Zap } from 'lucide-react';
+import { BookOpen, Settings, Lock, LockOpen, List, FileText, Menu, X, ChevronLeft, Upload, Download } from 'lucide-react';
 import { TaskList } from '../Sidebar/TaskList';
-import { AnalysisPanel } from '../Analysis/AnalysisPanel';
 import { ToastHost } from '../UI/ToastHost';
 import { getDiaryWordCount } from '../../utils/text';
 import { CloudSyncStatus } from '../UI/CloudSyncStatus';
@@ -30,21 +27,12 @@ import { showToast, getErrorMessage } from '../../utils/toast';
 import { syncManager } from '../../utils/syncManager';
 import { ReturnToLongTermIdeasPanel } from '../LongTermIdea/ReturnToLongTermIdeasPanel';
 import { LongTermIdeasDrawer } from '../LongTermIdea/LongTermIdeasDrawer';
-import { LONG_TERM_MASTER_ID, TEMPLATE_DIARY_ID } from '../../types';
+import { TEMPLATE_DIARY_ID } from '../../types';
 import { normalizeDiaryTags } from '../../utils/diaryTags';
 import { preloadAppleReminders } from '../../hooks/useAppleReminders';
 import { applyEditorHeadingSettings } from '../../utils/editorHeadingSettings';
-import {
-  TASK_DOCUMENT_TAG,
-  buildTaskDocumentContent,
-  buildTaskDocumentTitle,
-  isTaskDocumentDiary,
-  normalizeTaskTitle,
-} from '../../utils/taskDocument';
 import { isLongTermMasterDiary, isSystemDiary } from '../../utils/diarySystem';
 import { DesktopLeftSidebar, type LeftPanelView } from './DesktopLeftSidebar';
-import { LongTermTaskDocumentGuidePanel } from './LongTermTaskDocumentGuidePanel';
-import { TaskDocumentModal } from './TaskDocumentModal';
 import { useReviewDataSync } from '../../hooks/useReviewDataSync';
 
 import { t } from '../../i18n';
@@ -69,9 +57,7 @@ export const AppLayout: React.FC = () => {
   } = useDiaries();
 
   const { folders, createFolder, updateFolder, deleteFolder, importFolders } = useFolders();
-  const { unreadDiaryIds, markDiaryAnalysisRead } = useAutoDiaryAnalysis(allDiaries);
   useAutoDiaryTags(allDiaries, batchUpdateDiaries);
-  const { addIdea } = useLongTermIdeas();
   useReviewDataSync(activeUserId, isConfigured);
 
   useEffect(() => {
@@ -104,7 +90,6 @@ export const AppLayout: React.FC = () => {
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [leftPanelView, setLeftPanelView] = useState<LeftPanelView>('folders');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isAnalysisOpen, setIsAnalysisOpen] = useState(false);
   const [isLeftSidebarExpanded, setIsLeftSidebarExpanded] = useState(false);
   const [isLeftSidebarPinned, setIsLeftSidebarPinned] = useState(false);
   const [showTableOfContents, ] = useState(false);
@@ -127,7 +112,6 @@ export const AppLayout: React.FC = () => {
   const [navigatingFromIdea, setNavigatingFromIdea] = useState(false);
   const [highlightRange, setHighlightRange] = useState<{ from: number; to: number } | undefined>(undefined);
   const [isLongTermIdeasOpen, setIsLongTermIdeasOpen] = useState(false);
-  const [activeTaskDocumentId, setActiveTaskDocumentId] = useState<string | null>(null);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -186,11 +170,10 @@ export const AppLayout: React.FC = () => {
       fromLongTermIdea?: boolean;
     },
   ) => {
-    markDiaryAnalysisRead(diaryId);
     setHighlightRange(options?.highlightRange);
     setNavigatingFromIdea(Boolean(options?.fromLongTermIdea));
     setCurrentDiaryId(diaryId);
-  }, [markDiaryAnalysisRead, setCurrentDiaryId]);
+  }, [setCurrentDiaryId]);
 
   const openExportModal = useCallback((initialType: 'current' | 'all' = 'all') => {
     setExportModalInitialType(initialType);
@@ -265,34 +248,6 @@ export const AppLayout: React.FC = () => {
     [currentDiaryId, updateDiary]
   );
 
-  const handleAppendToDiary = useCallback(
-    (content: string) => {
-      if (currentDiaryId && currentDiary) {
-        const newContent = currentDiary.content + content;
-        updateDiary(currentDiaryId, { content: newContent });
-      }
-    },
-    [currentDiaryId, currentDiary, updateDiary]
-  );
-
-  const isCurrentTaskDocument = currentDiary ? isTaskDocumentDiary(currentDiary) : false;
-  const isCurrentLongTermMaster = currentDiaryId === LONG_TERM_MASTER_ID;
-  const canUseAiReview = Boolean(
-    currentDiary &&
-    !isCurrentLongTermMaster &&
-    !isCurrentTaskDocument &&
-    !currentDiary.isTemplateDiary &&
-    !currentDiary.isLongTermMaster
-  );
-
-  const handleOpenAnalysis = useCallback(() => {
-    if (!canUseAiReview) return;
-    if (currentDiaryId) {
-      markDiaryAnalysisRead(currentDiaryId);
-    }
-    setIsAnalysisOpen(true);
-  }, [canUseAiReview, currentDiaryId, markDiaryAnalysisRead]);
-
   const handleCreateDiary = () => {
     createDiary(selectedFolderId);
   };
@@ -308,62 +263,6 @@ export const AppLayout: React.FC = () => {
       setCurrentView('editor');
     }
   }, [isMobile, setCurrentDiaryId]);
-
-  const handleEnsureTaskDocument = useCallback((taskTitle: string, taskDocumentId?: string | null) => {
-    const normalizedTitle = normalizeTaskTitle(taskTitle);
-    const expectedTitle = buildTaskDocumentTitle(normalizedTitle);
-    const existingById = taskDocumentId
-      ? allDiaries.find((diary) => diary.id === taskDocumentId)
-      : null;
-    if (existingById && isTaskDocumentDiary(existingById)) {
-      const previousSourceTitle = existingById.taskDocumentSourceTaskTitle;
-      const shouldSyncTitle =
-        !previousSourceTitle ||
-        existingById.title === buildTaskDocumentTitle(previousSourceTitle);
-      if (
-        (shouldSyncTitle && existingById.title !== expectedTitle) ||
-        existingById.taskDocumentSourceTaskTitle !== normalizedTitle ||
-        !existingById.isTaskDocument ||
-        !existingById.tags.includes(TASK_DOCUMENT_TAG)
-      ) {
-        updateDiary(existingById.id, {
-          ...(shouldSyncTitle ? { title: expectedTitle } : {}),
-          isTaskDocument: true,
-          taskDocumentSourceDiaryId: LONG_TERM_MASTER_ID,
-          taskDocumentSourceTaskTitle: normalizedTitle,
-          tags: Array.from(new Set([...existingById.tags, TASK_DOCUMENT_TAG])),
-        });
-      }
-      return existingById.id;
-    }
-
-    if (taskDocumentId) {
-      console.warn('[task-document] Existing task document id not found, creating a new task document', taskDocumentId);
-    }
-
-    const created = createDiary(null, {
-      title: expectedTitle,
-      content: buildTaskDocumentContent(normalizedTitle),
-      tags: [TASK_DOCUMENT_TAG],
-      select: false,
-      isTaskDocument: true,
-      taskDocumentSourceDiaryId: LONG_TERM_MASTER_ID,
-      taskDocumentSourceTaskTitle: normalizedTitle,
-    });
-
-    return created.id;
-  }, [allDiaries, createDiary, updateDiary]);
-
-  const handleNavigateTaskDocument = useCallback((taskDocumentId: string) => {
-    setActiveTaskDocumentId(taskDocumentId);
-    if (isMobile) {
-      setIsSidebarOpen(false);
-    }
-  }, [isMobile]);
-
-  const handleCloseTaskDocument = useCallback(() => {
-    setActiveTaskDocumentId(null);
-  }, []);
 
   const handleChangeDiaryDate = (id: string, date: Date) => {
     const target = allDiaries.find((diary) => diary.id === id);
@@ -387,11 +286,11 @@ export const AppLayout: React.FC = () => {
   };
 
   const visibleDiaries = useMemo(
-    () => diaries.filter((diary) => !diary.isTemplateDiary && !isTaskDocumentDiary(diary)),
+    () => diaries.filter((diary) => !diary.isTemplateDiary),
     [diaries]
   );
   const ordinaryDiaries = useMemo(
-    () => diaries.filter((diary) => !isSystemDiary(diary) && !isTaskDocumentDiary(diary)),
+    () => diaries.filter((diary) => !isSystemDiary(diary)),
     [diaries]
   );
 
@@ -404,23 +303,7 @@ export const AppLayout: React.FC = () => {
     : visibleDiaries;
 
   const diaryContent = currentDiary?.content ?? '';
-  const activeTaskDocument = activeTaskDocumentId
-    ? allDiaries.find((diary) => diary.id === activeTaskDocumentId && isTaskDocumentDiary(diary)) ?? null
-    : null;
-
   const wordCount = getDiaryWordCount(diaryContent);
-
-  const handleTaskDocumentTitleChange = useCallback((title: string) => {
-    if (activeTaskDocumentId) {
-      updateDiary(activeTaskDocumentId, { title });
-    }
-  }, [activeTaskDocumentId, updateDiary]);
-
-  const handleTaskDocumentContentChange = useCallback((content: string) => {
-    if (activeTaskDocumentId) {
-      updateDiary(activeTaskDocumentId, { content });
-    }
-  }, [activeTaskDocumentId, updateDiary]);
 
   const handleSwitchAccount = async () => {
     try {
@@ -500,7 +383,6 @@ export const AppLayout: React.FC = () => {
               onSearch={searchDiaries}
               selectedFolderId={selectedFolderId}
               folders={folders}
-              unreadAutoAnalysisIds={unreadDiaryIds}
             />
           </div>
 
@@ -517,16 +399,9 @@ export const AppLayout: React.FC = () => {
                     if (currentDiary && isLongTermMasterDiary(currentDiary)) return;
                     updateDiary(currentDiaryId!, { tags: normalizeDiaryTags(tags) });
                   }}
-                  onAnalyze={handleOpenAnalysis}
                   onExport={() => openExportModal('current')}
-                  AnalyzeIcon={Zap}
-                  hasUnreadAutoAnalysis={canUseAiReview && currentDiaryId ? unreadDiaryIds.has(currentDiaryId) : false}
-                  showAiReview={canUseAiReview}
                 />
                 <div className="flex-1 overflow-hidden flex flex-col">
-                  {isCurrentLongTermMaster && (
-                    <LongTermTaskDocumentGuidePanel />
-                  )}
                   {navigatingFromIdea && (
                     <ReturnToLongTermIdeasPanel onReturn={handleReturnToLongTermIdeas} />
                   )}
@@ -534,9 +409,6 @@ export const AppLayout: React.FC = () => {
                     content={diaryContent}
                     onChange={handleContentChange}
                     editable={true}
-                    diaryId={currentDiaryId || undefined}
-                    onEnsureTaskDocument={handleEnsureTaskDocument}
-                    onNavigateTaskDocument={handleNavigateTaskDocument}
                     highlightRange={highlightRange}
                     contentRightPanel={
                       showTableOfContents ? (
@@ -722,25 +594,15 @@ export const AppLayout: React.FC = () => {
                         if (currentDiary && isLongTermMasterDiary(currentDiary)) return;
                         updateDiary(currentDiaryId!, { tags: normalizeDiaryTags(tags) });
                       }}
-                      onAnalyze={handleOpenAnalysis}
                       onExport={() => openExportModal('current')}
-                      AnalyzeIcon={Zap}
-                      hasUnreadAutoAnalysis={canUseAiReview && currentDiaryId ? unreadDiaryIds.has(currentDiaryId) : false}
-                      showAiReview={canUseAiReview}
                     />
                     
                     {/* 编辑器内容 */}
                     <div className="flex-1 overflow-auto">
-                      {isCurrentLongTermMaster && (
-                        <LongTermTaskDocumentGuidePanel />
-                      )}
                       <Editor
                         content={diaryContent}
                         onChange={handleContentChange}
                         editable={true}
-                        diaryId={currentDiaryId || undefined}
-                        onEnsureTaskDocument={handleEnsureTaskDocument}
-                        onNavigateTaskDocument={handleNavigateTaskDocument}
                       />
                     </div>
                     
@@ -813,7 +675,6 @@ export const AppLayout: React.FC = () => {
                     onSearch={searchDiaries}
                     selectedFolderId={selectedFolderId}
                     folders={folders}
-                    unreadAutoAnalysisIds={unreadDiaryIds}
                   />
                 </div>
               </div>
@@ -946,16 +807,6 @@ export const AppLayout: React.FC = () => {
         </div>
       )}
 
-      {/* 模态框 */}
-      {activeTaskDocument && (
-        <TaskDocumentModal
-          diary={activeTaskDocument}
-          onClose={handleCloseTaskDocument}
-          onTitleChange={handleTaskDocumentTitleChange}
-          onContentChange={handleTaskDocumentContentChange}
-        />
-      )}
-
       <ExportModal
         isOpen={isExportModalOpen}
         onClose={() => setIsExportModalOpen(false)}
@@ -987,17 +838,6 @@ export const AppLayout: React.FC = () => {
         onImport={() => setIsImportModalOpen(true)}
         onExport={() => openExportModal('all')}
         onRetrySync={handleRetrySync}
-      />
-
-      <AnalysisPanel
-        isOpen={isAnalysisOpen}
-        diaryId={currentDiaryId}
-        diaryContent={diaryContent}
-        onClose={() => setIsAnalysisOpen(false)}
-        onAppendToDiary={handleAppendToDiary}
-        onUpdateDiary={updateDiary}
-        onCreateLongTermIdea={addIdea}
-        enabled={canUseAiReview}
       />
 
       <ToastHost />

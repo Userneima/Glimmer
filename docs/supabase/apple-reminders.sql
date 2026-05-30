@@ -19,6 +19,9 @@ create table if not exists public.apple_reminders (
 
 alter table public.apple_reminders enable row level security;
 
+grant usage on schema public to authenticated;
+grant select, insert, update, delete on public.apple_reminders to authenticated;
+
 drop policy if exists "apple_reminders_owner" on public.apple_reminders;
 create policy "apple_reminders_owner" on public.apple_reminders
   for all
@@ -30,4 +33,3 @@ create index if not exists idx_apple_reminders_user_id
 
 create index if not exists idx_apple_reminders_user_due_at
   on public.apple_reminders(user_id, due_at);
-
