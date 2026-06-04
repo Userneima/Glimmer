@@ -1,4 +1,6 @@
 // Offline operation queue for retry mechanism
+import { getDesktopStoreItem, removeDesktopStoreItem, setDesktopStoreItem } from './desktopStore';
+
 export type SyncOperation = {
   id: string;
   type: 'diary' | 'folder' | 'task' | 'longTermIdea';
@@ -14,12 +16,14 @@ const QUEUE_KEY = 'sync_queue';
 const MAX_RETRIES = 5;
 let currentQueueUserId: string | null = null;
 
+const BACKUP_KEY_PREFIX = 'diaries_backups';
+
 const getQueueKey = (userId: string | null = currentQueueUserId) =>
   userId ? `${QUEUE_KEY}-${userId}` : QUEUE_KEY;
 
 const readQueueFromKey = (key: string): SyncOperation[] => {
   try {
-    const data = localStorage.getItem(key);
+    const data = getQueueItem(key);
     if (!data) return [];
     return JSON.parse(data) as SyncOperation[];
   } catch (err) {
@@ -29,7 +33,55 @@ const readQueueFromKey = (key: string): SyncOperation[] => {
 };
 
 const writeQueueToKey = (key: string, queue: SyncOperation[]): void => {
-  localStorage.setItem(key, JSON.stringify(queue));
+  setQueueItem(key, JSON.stringify(queue));
+};
+
+const isQuotaExceededError = (err: unknown): boolean => {
+  if (!(err instanceof Error)) return false;
+  const message = err.message.toLowerCase();
+  return (
+    err.name === 'QuotaExceededError' ||
+    err.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
+    message.includes('quota')
+  );
+};
+
+const removeInBrowserBackups = () => {
+  const keysToRemove: string[] = [];
+  for (let index = 0; index < localStorage.length; index += 1) {
+    const key = localStorage.key(index);
+    if (key && (key === BACKUP_KEY_PREFIX || key.startsWith(`${BACKUP_KEY_PREFIX}-`))) {
+      keysToRemove.push(key);
+    }
+  }
+  keysToRemove.forEach((key) => localStorage.removeItem(key));
+};
+
+const getQueueItem = (key: string) => {
+  const desktopValue = getDesktopStoreItem(key);
+  if (desktopValue !== null) return desktopValue;
+  return localStorage.getItem(key);
+};
+
+const setQueueItem = (key: string, value: string) => {
+  if (setDesktopStoreItem(key, value)) {
+    localStorage.removeItem(key);
+    removeInBrowserBackups();
+    return;
+  }
+
+  try {
+    localStorage.setItem(key, value);
+  } catch (err) {
+    if (!isQuotaExceededError(err)) throw err;
+    removeInBrowserBackups();
+    localStorage.setItem(key, value);
+  }
+};
+
+const removeQueueItem = (key: string) => {
+  removeDesktopStoreItem(key);
+  localStorage.removeItem(key);
 };
 
 export const setSyncQueueUserId = (userId: string | null) => {
@@ -50,7 +102,7 @@ export const setSyncQueueUserId = (userId: string | null) => {
     if (remaining.length > 0) {
       writeQueueToKey(QUEUE_KEY, remaining);
     } else {
-      localStorage.removeItem(QUEUE_KEY);
+      removeQueueItem(QUEUE_KEY);
     }
   } catch (err) {
     console.error('Failed to migrate legacy sync queue', err);
@@ -140,7 +192,7 @@ export class SyncQueue {
   // Clear all operations
   clear(userId: string | null = currentQueueUserId): void {
     try {
-      localStorage.removeItem(getQueueKey(userId));
+      removeQueueItem(getQueueKey(userId));
     } catch (err) {
       console.error('Failed to clear sync queue', err);
     }

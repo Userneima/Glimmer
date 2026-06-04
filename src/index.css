@@ -3,18 +3,170 @@
 @tailwind utilities;
 
 /* ============================================
-   弥散光感风格（Diffusion / Aurora UI）配色系统
+   Glimmer calm writing theme
    ============================================ */
 
+@font-face {
+  font-family: 'Glimmer PuHuiTi';
+  font-style: normal;
+  font-weight: 300;
+  font-display: swap;
+  src:
+    local('AlibabaPuHuiTi_3_45_Light'),
+    local('Alibaba PuHuiTi 3 45 Light'),
+    local('Alibaba PuHuiTi 3.045 Light');
+}
+
+@font-face {
+  font-family: 'Glimmer PuHuiTi';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src:
+    local('AlibabaPuHuiTi_3_55_Regular'),
+    local('Alibaba PuHuiTi 3 55 Regular'),
+    local('Alibaba PuHuiTi 3.055 Regular');
+}
+
+@font-face {
+  font-family: 'Glimmer PuHuiTi';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src:
+    local('AlibabaPuHuiTi_3_65_Medium'),
+    local('Alibaba PuHuiTi 3 65 Medium'),
+    local('Alibaba PuHuiTi 3.065 Medium');
+}
+
+@font-face {
+  font-family: 'Glimmer PuHuiTi';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src:
+    local('AlibabaPuHuiTi_3_75_SemiBold'),
+    local('Alibaba PuHuiTi 3 75 SemiBold'),
+    local('Alibaba PuHuiTi 3.075 SemiBold');
+}
+
+@font-face {
+  font-family: 'Glimmer PuHuiTi';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src:
+    local('AlibabaPuHuiTi_3_85_Bold'),
+    local('Alibaba PuHuiTi 3 85 Bold'),
+    local('Alibaba PuHuiTi 3.085 Bold');
+}
+
+@font-face {
+  font-family: 'Glimmer PuHuiTi';
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+  src:
+    local('AlibabaPuHuiTi_3_95_ExtraBold'),
+    local('Alibaba PuHuiTi 3 95 ExtraBold'),
+    local('Alibaba PuHuiTi 3.095 ExtraBold');
+}
+
 :root {
-  /* 核心色卡 - Diffusion Aurora (科技蓝绿) */
-  --aurora-primary: #1e293b;        /* 主要文字 - 深灰蓝 */
-  --aurora-secondary: #334155;      /* 次要文字 */
-  --aurora-muted: #64748b;          /* 弱化文字 */
-  --aurora-accent: #0ea5e9;         /* 强调色 - 科技蓝 */
-  --aurora-accent-alt: #06b6d4;     /* 强调色 - 青蓝 */
-  --aurora-glass: rgba(255, 255, 255, 0.3); /* 玻璃背景 */
-  --aurora-border: rgba(255, 255, 255, 0.2); /* 玻璃边框 */
+  --glimmer-font-sans: 'Glimmer PuHuiTi', 'Alibaba PuHuiTi 3.0', 'Alibaba PuHuiTi 3', 'AlibabaPuHuiTi_3_55_Regular', 'PingFang SC', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', 'Microsoft YaHei', 'Helvetica', 'Arial', sans-serif;
+  --aurora-primary: #182332;
+  --aurora-secondary: #3d4b5f;
+  --aurora-muted: #6b7789;
+  --aurora-accent: #0b8fd3;
+  --aurora-accent-alt: #37aee2;
+  --aurora-glass: rgba(255, 255, 255, 0.68);
+  --aurora-border: rgba(135, 154, 178, 0.22);
+  --glimmer-bg: #f4f8fb;
+  --glimmer-bg-image:
+    radial-gradient(circle at 14% 8%, rgba(125, 190, 232, 0.28) 0%, transparent 42%),
+    radial-gradient(circle at 88% 92%, rgba(131, 205, 190, 0.22) 0%, transparent 46%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.76) 0%, rgba(236, 243, 249, 0.72) 100%);
+  --glimmer-surface: rgba(255, 255, 255, 0.82);
+  --glimmer-surface-strong: rgba(255, 255, 255, 0.94);
+  --glimmer-surface-muted: rgba(242, 247, 251, 0.78);
+  --glimmer-surface-header: rgba(249, 252, 255, 0.72);
+  --glimmer-surface-card: rgba(255, 255, 255, 0.74);
+  --glimmer-surface-card-hover: rgba(255, 255, 255, 0.92);
+  --glimmer-surface-active: rgba(11, 143, 211, 0.12);
+  --glimmer-surface-field: rgba(255, 255, 255, 0.84);
+  --glimmer-editor-bg: rgba(255, 255, 255, 0.8);
+  --glimmer-border: rgba(127, 146, 170, 0.24);
+  --glimmer-border-strong: rgba(11, 143, 211, 0.45);
+  --glimmer-shadow: 0 12px 34px rgba(44, 70, 100, 0.09);
+  --glimmer-shadow-soft: 0 6px 18px rgba(44, 70, 100, 0.07);
+  --glimmer-danger-surface: rgba(254, 226, 226, 0.78);
+  --glimmer-code-bg: rgba(24, 35, 50, 0.06);
+  --glimmer-toc-bg: linear-gradient(180deg, rgba(248, 251, 254, 0.88) 0%, rgba(234, 244, 250, 0.56) 100%);
+  --glimmer-scrollbar: rgba(50, 66, 84, 0.22);
+  --glimmer-scrollbar-hover: rgba(50, 66, 84, 0.36);
+}
+
+:root[data-theme="dark"] {
+  --aurora-primary: #f4f8ff;
+  --aurora-secondary: #d5deeb;
+  --aurora-muted: #a7b4c6;
+  --aurora-accent: #5abde8;
+  --aurora-accent-alt: #86d2ee;
+  --aurora-glass: rgba(17, 24, 34, 0.78);
+  --aurora-border: rgba(151, 169, 190, 0.16);
+  --glimmer-bg: #0c1219;
+  --glimmer-bg-image:
+    radial-gradient(circle at 12% 8%, rgba(42, 116, 153, 0.24) 0%, transparent 42%),
+    radial-gradient(circle at 88% 92%, rgba(41, 102, 96, 0.18) 0%, transparent 48%),
+    linear-gradient(135deg, rgba(12, 18, 25, 0.98) 0%, rgba(16, 24, 34, 0.96) 100%);
+  --glimmer-surface: rgba(17, 24, 34, 0.78);
+  --glimmer-surface-strong: rgba(20, 28, 39, 0.94);
+  --glimmer-surface-muted: rgba(22, 31, 43, 0.76);
+  --glimmer-surface-header: rgba(18, 26, 36, 0.8);
+  --glimmer-surface-card: rgba(21, 30, 42, 0.74);
+  --glimmer-surface-card-hover: rgba(27, 38, 52, 0.92);
+  --glimmer-surface-active: rgba(90, 189, 232, 0.16);
+  --glimmer-surface-field: rgba(18, 27, 38, 0.86);
+  --glimmer-editor-bg: rgba(14, 21, 30, 0.76);
+  --glimmer-border: rgba(151, 169, 190, 0.17);
+  --glimmer-border-strong: rgba(90, 189, 232, 0.5);
+  --glimmer-shadow: 0 16px 42px rgba(0, 0, 0, 0.32);
+  --glimmer-shadow-soft: 0 8px 22px rgba(0, 0, 0, 0.24);
+  --glimmer-danger-surface: rgba(91, 30, 35, 0.62);
+  --glimmer-code-bg: rgba(255, 255, 255, 0.08);
+  --glimmer-toc-bg: linear-gradient(180deg, rgba(18, 27, 38, 0.92) 0%, rgba(13, 20, 29, 0.82) 100%);
+  --glimmer-scrollbar: rgba(190, 205, 222, 0.24);
+  --glimmer-scrollbar-hover: rgba(210, 222, 236, 0.4);
+}
+
+:root[data-theme="dark"] .glimmer-card {
+  background: rgba(20, 29, 41, 0.9);
+  border-color: rgba(153, 171, 193, 0.24);
+}
+
+:root[data-theme="dark"] .glimmer-card:hover {
+  background: rgba(29, 41, 56, 0.96);
+}
+
+:root[data-theme="dark"] .glimmer-info-strip {
+  background: rgba(26, 48, 58, 0.86);
+  border-color: rgba(90, 189, 232, 0.34);
+  color: #8ed7f3;
+}
+
+:root[data-theme="dark"] .glimmer-action-icon {
+  background: rgba(90, 189, 232, 0.18);
+  color: #74cff0;
+}
+
+:root[data-theme="dark"] .glimmer-action-icon-success {
+  background: rgba(52, 199, 89, 0.18);
+  color: #72dd8e;
+}
+
+:root[data-theme="dark"] .glimmer-preview-panel {
+  background: rgba(18, 27, 38, 0.9);
+  border-color: rgba(153, 171, 193, 0.22);
 }
 
 /* 基础样式 */
@@ -32,22 +184,18 @@ html {
 }
 
 body {
-  font-family: 'PingFang SC', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', 'Microsoft YaHei', 'Helvetica', 'Arial', sans-serif;
+  font-family: var(--glimmer-font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
   font-feature-settings: 'kern' 1;
-  /* 弥散光背景 - 科技蓝绿渐变 */
-  background: 
-    radial-gradient(circle at 10% 10%, rgba(147, 197, 253, 0.5) 0%, transparent 50%),
-    radial-gradient(circle at 90% 90%, rgba(167, 243, 208, 0.5) 0%, transparent 50%),
-    radial-gradient(circle at 50% 50%, rgba(224, 242, 254, 0.4) 0%, transparent 50%);
+  background: var(--glimmer-bg-image);
   background-attachment: fixed;
-  background-color: #f8fafc;
+  background-color: var(--glimmer-bg);
   color: var(--aurora-primary);
   line-height: 1.5;
   letter-spacing: -0.016em;
-  min-height: 100vh;
+  min-height: 100dvh;
   /* Enable text selection */
   -webkit-user-select: text !important;
   user-select: text !important;
@@ -67,16 +215,14 @@ body {
   pointer-events: auto !important;
 }
 
-/* 弥散光选中样式 */
 ::selection {
-  background-color: rgba(14, 165, 233, 0.25);
+  background-color: color-mix(in srgb, var(--aurora-accent) 24%, transparent);
   color: inherit;
 }
 
-/* 弥散光聚焦样式 */
 :focus-visible {
   outline: none;
-  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.3);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--aurora-accent) 28%, transparent);
   border-radius: 12px;
 }
 
@@ -118,7 +264,7 @@ input, textarea, select {
   width: 16px;
   height: 16px;
   cursor: pointer;
-  accent-color: #0ea5e9;
+  accent-color: var(--aurora-accent);
 }
 
 /* 文字：统一行高，使用inline-flex代替flex */
@@ -145,6 +291,7 @@ input, textarea, select {
   touch-action: pan-x pan-y !important;
   /* Ensure proper pointer events */
   pointer-events: auto !important;
+  color: var(--aurora-primary);
 }
 
 /* Allow text selection in editor content */
@@ -197,28 +344,28 @@ input, textarea, select {
   font-weight: 600;
   margin: 1.2rem 0 0.6rem;
   letter-spacing: -0.015em;
-  color: #1d1d1f;
+  color: var(--aurora-primary);
 }
 
 .ProseMirror h4 {
   font-size: var(--editor-heading-4-size, 1.08em);
   font-weight: 600;
   margin: 1.25rem 0 0.625rem;
-  color: #1d1d1f;
+  color: var(--aurora-primary);
 }
 
 .ProseMirror h5 {
   font-size: var(--editor-heading-5-size, 1em);
   font-weight: 600;
   margin: 1rem 0 0.5rem;
-  color: #424245;
+  color: var(--aurora-secondary);
 }
 
 .ProseMirror h6 {
   font-size: var(--editor-heading-6-size, 0.94em);
   font-weight: 600;
   margin: 1rem 0 0.5rem;
-  color: #6e6e73;
+  color: var(--aurora-muted);
 }
 
 .ProseMirror ul,
@@ -270,6 +417,10 @@ input, textarea, select {
   gap: 0.5rem;
 }
 
+.ProseMirror ul[data-type="taskList"] li[data-carryover-status="carried"] {
+  display: none;
+}
+
 .ProseMirror ul[data-type="taskList"] li > label {
   display: inline-flex;
   align-items: center;
@@ -298,38 +449,38 @@ input, textarea, select {
   width: 16px;
   height: 16px;
   cursor: pointer;
-  accent-color: #0ea5e9;
+  accent-color: var(--aurora-accent);
 }
 
 .ProseMirror blockquote {
-  border-left: 4px solid #007aff;
+  border-left: 4px solid var(--aurora-accent);
   padding-left: 1.25rem;
   margin: 1rem 0;
-  color: #6e6e73;
+  color: var(--aurora-secondary);
   font-style: italic;
-  background: linear-gradient(90deg, rgba(0, 122, 255, 0.04) 0%, transparent 100%);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--aurora-accent) 9%, transparent) 0%, transparent 100%);
   padding-top: 0.5rem;
   padding-bottom: 0.5rem;
   border-radius: 0 8px 8px 0;
 }
 
 .ProseMirror code {
-  background-color: rgba(0, 0, 0, 0.05);
+  background-color: var(--glimmer-code-bg);
   padding: 0.2rem 0.4rem;
   border-radius: 6px;
   font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', monospace;
   font-size: 0.875em;
-  color: #ff3b30;
+  color: #d8463f;
 }
 
 .ProseMirror pre {
-  background: linear-gradient(145deg, #1d1d1f 0%, #2c2c2e 100%);
-  color: #f5f5f7;
+  background: linear-gradient(145deg, #141b25 0%, #202936 100%);
+  color: #eef4fb;
   padding: 1.25rem;
   border-radius: 12px;
   overflow-x: auto;
   margin: 1rem 0;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--glimmer-shadow-soft);
 }
 
 .ProseMirror pre code {
@@ -349,11 +500,11 @@ input, textarea, select {
   border-spacing: 0;
   width: max-content;
   table-layout: fixed;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--glimmer-border);
   border-radius: 16px;
   overflow: hidden;
-  background: rgba(255, 255, 255, 0.96);
-  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.08);
+  background: var(--glimmer-surface-strong);
+  box-shadow: var(--glimmer-shadow-soft);
 }
 
 .ProseMirror table td,
@@ -361,12 +512,12 @@ input, textarea, select {
   position: relative;
   box-sizing: border-box;
   min-width: 36px;
-  border-right: 1px solid #e8edf5;
-  border-bottom: 1px solid #e8edf5;
+  border-right: 1px solid var(--glimmer-border);
+  border-bottom: 1px solid var(--glimmer-border);
   padding: 0.16rem 0.3rem;
   text-align: left;
   vertical-align: top;
-  background: rgba(255, 255, 255, 0.9);
+  background: var(--glimmer-surface-card);
   transition: background-color 0.18s ease;
   line-height: 1.35;
   overflow-wrap: anywhere;
@@ -382,9 +533,9 @@ input, textarea, select {
 }
 
 .ProseMirror table th {
-  background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+  background: var(--glimmer-surface-muted);
   font-weight: 600;
-  color: #0f172a;
+  color: var(--aurora-primary);
   padding: 0.18rem 0.34rem;
   text-align: center;
   vertical-align: middle;
@@ -392,7 +543,7 @@ input, textarea, select {
 
 .ProseMirror table tr:hover td,
 .ProseMirror table tr:hover th {
-  background-color: rgba(59, 130, 246, 0.035);
+  background-color: color-mix(in srgb, var(--aurora-accent) 8%, transparent);
 }
 
 .ProseMirror .column-resize-handle {
@@ -402,7 +553,7 @@ input, textarea, select {
   bottom: 0;
   width: 6px;
   z-index: 20;
-  background: linear-gradient(180deg, rgba(37, 99, 235, 0.12), rgba(37, 99, 235, 0.55));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--aurora-accent) 18%, transparent), color-mix(in srgb, var(--aurora-accent) 62%, transparent));
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.15s ease;
@@ -424,8 +575,8 @@ input, textarea, select {
   content: '';
   z-index: 2;
   pointer-events: none;
-  background: rgba(59, 130, 246, 0.12);
-  box-shadow: inset 0 0 0 1px rgba(59, 130, 246, 0.35);
+  background: color-mix(in srgb, var(--aurora-accent) 14%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--aurora-accent) 45%, transparent);
 }
 
 .ProseMirror img {
@@ -433,27 +584,27 @@ input, textarea, select {
   height: auto;
   border-radius: 12px;
   margin: 1rem 0;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--glimmer-shadow-soft);
 }
 
 .ProseMirror hr {
   border: none;
   height: 1px;
-  background: linear-gradient(90deg, transparent, #d2d2dc 20%, #d2d2dc 80%, transparent);
+  background: linear-gradient(90deg, transparent, var(--glimmer-border) 20%, var(--glimmer-border) 80%, transparent);
   margin: 2rem 0;
 }
 
 .ProseMirror a {
-  color: #007aff;
+  color: var(--aurora-accent);
   text-decoration: none;
   cursor: pointer;
-  border-bottom: 1px solid rgba(0, 122, 255, 0.3);
+  border-bottom: 1px solid color-mix(in srgb, var(--aurora-accent) 35%, transparent);
   transition: all 0.2s ease;
 }
 
 .ProseMirror a:hover {
-  color: #0055bf;
-  border-bottom-color: #0055bf;
+  color: var(--aurora-accent-alt);
+  border-bottom-color: var(--aurora-accent-alt);
 }
 
 /* Scrollbar Styles - Apple-inspired */
@@ -467,14 +618,14 @@ input, textarea, select {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.2);
+  background: var(--glimmer-scrollbar);
   border-radius: 5px;
   border: 3px solid transparent;
   background-clip: padding-box;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 0, 0, 0.35);
+  background: var(--glimmer-scrollbar-hover);
   border: 3px solid transparent;
   background-clip: padding-box;
 }
@@ -491,136 +642,295 @@ input, textarea, select {
 
 /* Glass morphism effects */
 .glass {
-  background: rgba(255, 255, 255, 0.72);
+  background: var(--glimmer-surface);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
 }
 
 .glass-dark {
-  background: rgba(29, 29, 31, 0.72);
+  background: var(--glimmer-surface-strong);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
 }
 
 /* Apple-style surface backgrounds */
 .surface-primary {
-  background-color: #ffffff;
+  background-color: var(--glimmer-surface-strong);
 }
 
 .surface-secondary {
-  background-color: #f5f5f7;
+  background-color: var(--glimmer-surface-muted);
 }
 
 .surface-elevated {
-  background-color: rgba(255, 255, 255, 0.9);
+  background-color: var(--glimmer-surface-strong);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
 }
-/* React Calendar - Apple Style Override */
-.react-calendar {
-  width: 100% !important;
-  border: none !important;
-  background: linear-gradient(180deg, rgba(255,255,255,0.9) 0%, rgba(248,250,252,0.8) 100%) !important;
-  border-radius: 16px !important;
-  padding: 12px !important;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06) !important;
-  backdrop-filter: blur(20px);
-  font-family: inherit !important;
+
+.glimmer-panel {
+  background: var(--glimmer-surface);
+  border-color: var(--glimmer-border);
 }
 
-.react-calendar__navigation {
-  margin-bottom: 12px !important;
-  gap: 2px;
-  display: flex !important;
-  justify-content: center !important;
-  align-items: center !important;
+.glimmer-panel-header {
+  background: var(--glimmer-surface-header);
+  border-color: var(--glimmer-border);
 }
 
-.react-calendar__navigation button {
-  background: transparent !important;
-  border-radius: 8px !important;
-  color: #1e293b !important;
-  font-weight: 600 !important;
-  font-size: 0.875rem !important;
-  min-width: 28px !important;
-  padding: 4px 6px !important;
-  transition: all 0.2s ease !important;
+.glimmer-field {
+  background: var(--glimmer-surface-field);
+  border: 1px solid var(--glimmer-border);
+  color: var(--aurora-primary);
 }
 
-.react-calendar__navigation__label {
-  flex-grow: 0 !important;
-  padding: 0 8px !important;
-  font-size: 0.9rem !important;
-  white-space: nowrap !important;
+.glimmer-field::placeholder {
+  color: var(--aurora-muted);
 }
 
-.react-calendar__navigation button:hover:enabled,
-.react-calendar__navigation button:focus {
-  background: linear-gradient(180deg, #f1f5f9 0%, #e2e8f0 100%) !important;
+.glimmer-card {
+  background: var(--glimmer-surface-card);
+  border-color: var(--glimmer-border);
 }
 
-.react-calendar__navigation button:disabled {
-  opacity: 0.4 !important;
+.glimmer-card:hover {
+  background: var(--glimmer-surface-card-hover);
+  box-shadow: var(--glimmer-shadow-soft);
 }
 
-.react-calendar__month-view__weekdays {
-  text-transform: uppercase !important;
-  font-weight: 600 !important;
-  font-size: 0.7rem !important;
-  color: #64748b !important;
+.glimmer-card-active {
+  background: var(--glimmer-surface-active);
+  border-color: var(--glimmer-border-strong);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--aurora-accent) 12%, transparent);
 }
 
-.react-calendar__month-view__weekdays__weekday {
-  padding: 8px 0 !important;
+.glimmer-system-card {
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--aurora-accent) 13%, var(--glimmer-surface-card)) 0%, var(--glimmer-surface-card-hover) 100%);
+  border-color: var(--glimmer-border-strong);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--aurora-accent) 10%, transparent);
 }
 
-.react-calendar__month-view__weekdays__weekday abbr {
-  text-decoration: none !important;
+.glimmer-info-strip {
+  background: color-mix(in srgb, var(--aurora-accent) 12%, var(--glimmer-surface-card));
+  border: 1px solid color-mix(in srgb, var(--aurora-accent) 18%, var(--glimmer-border));
+  color: var(--aurora-accent);
 }
 
-.react-calendar__tile {
-  padding: 8px 4px !important;
-  background: transparent !important;
-  border-radius: 10px !important;
-  font-size: 0.75rem !important;
-  color: #334155 !important;
-  transition: all 0.2s ease !important;
-  position: relative;
-  line-height: 1.2 !important;
-  display: flex !important;
-  flex-direction: column !important;
-  align-items: center !important;
-  justify-content: center !important;
+.glimmer-popover {
+  background: var(--glimmer-surface-strong);
+  border-color: var(--glimmer-border);
+  color: var(--aurora-primary);
 }
 
-.react-calendar__tile abbr {
-  white-space: nowrap !important;
-  display: block !important;
-  text-align: center !important;
+.glimmer-action-row {
+  background: transparent;
+  color: var(--aurora-primary);
+  border: 1px solid transparent;
 }
 
-.react-calendar__tile:hover:enabled {
-  background: linear-gradient(180deg, #f1f5f9 0%, #e2e8f0 100%) !important;
+.glimmer-action-row:hover {
+  background: var(--glimmer-surface-card-hover);
+  border-color: var(--glimmer-border);
 }
 
-.react-calendar__tile--now {
-  background: linear-gradient(180deg, #dbeafe 0%, #bfdbfe 100%) !important;
-  font-weight: 600 !important;
+.glimmer-action-icon {
+  background: color-mix(in srgb, var(--aurora-accent) 14%, transparent);
+  color: var(--aurora-accent);
 }
 
-.react-calendar__tile--active,
-.react-calendar__tile--active:enabled:hover,
-.react-calendar__tile--active:enabled:focus {
-  background: linear-gradient(180deg, #3b82f6 0%, #2563eb 100%) !important;
-  color: white !important;
-  font-weight: 600 !important;
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.35) !important;
+.glimmer-action-icon-success {
+  background: color-mix(in srgb, #34c759 16%, transparent);
+  color: #34c759;
 }
 
-.react-calendar__tile--hasActive {
-  background: linear-gradient(180deg, #dbeafe 0%, #bfdbfe 100%) !important;
+.glimmer-preview-panel {
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--aurora-accent) 7%, var(--glimmer-surface-card)) 0%, var(--glimmer-surface-card) 100%);
+  border-color: var(--glimmer-border);
 }
 
-.react-calendar__month-view__days__day--neighboringMonth {
-  color: #94a3b8 !important;
+.glimmer-icon-button {
+  color: var(--aurora-secondary);
+}
+
+.glimmer-icon-button:hover {
+  background: color-mix(in srgb, var(--aurora-accent) 12%, transparent);
+  color: var(--aurora-accent);
+}
+
+.glimmer-accent-button {
+  background: linear-gradient(135deg, var(--aurora-accent) 0%, var(--aurora-accent-alt) 100%);
+  color: #ffffff;
+}
+
+.glimmer-empty-view {
+  background: var(--glimmer-toc-bg);
+}
+
+.glimmer-toc-panel {
+  background: var(--glimmer-toc-bg);
+}
+
+.glimmer-toc-item {
+  color: var(--aurora-secondary);
+}
+
+.glimmer-toc-item:hover {
+  background: var(--glimmer-surface-card-hover);
+  color: var(--aurora-accent);
+}
+
+.glimmer-toc-badge {
+  background: var(--glimmer-surface-muted);
+  color: var(--aurora-muted);
+}
+
+:root[data-theme="dark"] .text-primary-900,
+:root[data-theme="dark"] .text-primary-800,
+:root[data-theme="dark"] .text-slate-900,
+:root[data-theme="dark"] .text-slate-800,
+:root[data-theme="dark"] .text-gray-900,
+:root[data-theme="dark"] .text-gray-800,
+:root[data-theme="dark"] .text-sky-900,
+:root[data-theme="dark"] .text-emerald-900 {
+  color: var(--aurora-primary) !important;
+}
+
+:root[data-theme="dark"] .text-primary-700,
+:root[data-theme="dark"] .text-primary-600,
+:root[data-theme="dark"] .text-slate-700,
+:root[data-theme="dark"] .text-slate-600,
+:root[data-theme="dark"] .text-slate-300,
+:root[data-theme="dark"] .text-gray-700,
+:root[data-theme="dark"] .text-gray-600,
+:root[data-theme="dark"] .text-blue-700,
+:root[data-theme="dark"] .text-green-700,
+:root[data-theme="dark"] .text-emerald-700,
+:root[data-theme="dark"] .text-emerald-600 {
+  color: var(--aurora-secondary) !important;
+}
+
+:root[data-theme="dark"] .text-primary-500,
+:root[data-theme="dark"] .text-primary-400,
+:root[data-theme="dark"] .text-slate-500,
+:root[data-theme="dark"] .text-slate-400,
+:root[data-theme="dark"] .text-gray-500,
+:root[data-theme="dark"] .text-gray-400,
+:root[data-theme="dark"] .text-gray-300 {
+  color: var(--aurora-muted) !important;
+}
+
+:root[data-theme="dark"] .border-slate-200,
+:root[data-theme="dark"] .border-slate-200\/80,
+:root[data-theme="dark"] .border-slate-200\/70,
+:root[data-theme="dark"] .border-slate-200\/60,
+:root[data-theme="dark"] .border-primary-100,
+:root[data-theme="dark"] .border-primary-200,
+:root[data-theme="dark"] .border-gray-200,
+:root[data-theme="dark"] .border-gray-300,
+:root[data-theme="dark"] .border-blue-200,
+:root[data-theme="dark"] .border-green-200,
+:root[data-theme="dark"] .border-sky-100,
+:root[data-theme="dark"] .border-sky-200,
+:root[data-theme="dark"] .border-sky-200\/90,
+:root[data-theme="dark"] .border-amber-200,
+:root[data-theme="dark"] .border-red-100,
+:root[data-theme="dark"] .border-red-200,
+:root[data-theme="dark"] .border-white\/50,
+:root[data-theme="dark"] .border-white\/30,
+:root[data-theme="dark"] .border-white\/70 {
+  border-color: var(--glimmer-border) !important;
+}
+
+:root[data-theme="dark"] .bg-white,
+:root[data-theme="dark"] .bg-white\/55,
+:root[data-theme="dark"] .bg-white\/60,
+:root[data-theme="dark"] .bg-white\/70,
+:root[data-theme="dark"] .bg-white\/72,
+:root[data-theme="dark"] .bg-white\/75,
+:root[data-theme="dark"] .bg-white\/80,
+:root[data-theme="dark"] .bg-white\/85,
+:root[data-theme="dark"] .bg-white\/88,
+:root[data-theme="dark"] .bg-white\/90,
+:root[data-theme="dark"] .bg-white\/92,
+:root[data-theme="dark"] .bg-white\/95,
+:root[data-theme="dark"] .bg-primary-50,
+:root[data-theme="dark"] .bg-primary-50\/80,
+:root[data-theme="dark"] .bg-primary-100,
+:root[data-theme="dark"] .bg-slate-50,
+:root[data-theme="dark"] .bg-slate-100,
+:root[data-theme="dark"] .bg-gray-50,
+:root[data-theme="dark"] .bg-gray-100,
+:root[data-theme="dark"] .bg-blue-50,
+:root[data-theme="dark"] .bg-green-50,
+:root[data-theme="dark"] .bg-amber-50,
+:root[data-theme="dark"] .bg-amber-50\/80 {
+  background-color: var(--glimmer-surface-muted) !important;
+}
+
+:root[data-theme="dark"] .bg-sky-50,
+:root[data-theme="dark"] .bg-sky-50\/60,
+:root[data-theme="dark"] .bg-sky-50\/70,
+:root[data-theme="dark"] .bg-sky-50\/80,
+:root[data-theme="dark"] .bg-sky-50\/90,
+:root[data-theme="dark"] .bg-sky-100 {
+  background-color: color-mix(in srgb, var(--aurora-accent) 14%, transparent) !important;
+}
+
+:root[data-theme="dark"] .from-white,
+:root[data-theme="dark"] .from-sky-50\/90 {
+  --tw-gradient-from: var(--glimmer-surface-card) var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: rgb(21 30 42 / 0) var(--tw-gradient-to-position) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+
+:root[data-theme="dark"] .via-white,
+:root[data-theme="dark"] .via-sky-50\/35 {
+  --tw-gradient-to: rgb(21 30 42 / 0) var(--tw-gradient-to-position) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--glimmer-surface-card-hover) var(--tw-gradient-via-position), var(--tw-gradient-to) !important;
+}
+
+:root[data-theme="dark"] .to-white,
+:root[data-theme="dark"] .to-white\/80 {
+  --tw-gradient-to: var(--glimmer-surface-card) var(--tw-gradient-to-position) !important;
+}
+
+:root[data-theme="dark"] .text-sky-700,
+:root[data-theme="dark"] .text-sky-600,
+:root[data-theme="dark"] .text-sky-500,
+:root[data-theme="dark"] .text-sky-400,
+:root[data-theme="dark"] .text-sky-900,
+:root[data-theme="dark"] .text-blue-600,
+:root[data-theme="dark"] .text-accent-500 {
+  color: var(--aurora-accent) !important;
+}
+
+:root[data-theme="dark"] .text-amber-700,
+:root[data-theme="dark"] .text-amber-600 {
+  color: #f0bd74 !important;
+}
+
+:root[data-theme="dark"] .bg-red-50,
+:root[data-theme="dark"] .bg-red-100,
+:root[data-theme="dark"] .bg-red-100\/50 {
+  background-color: var(--glimmer-danger-surface) !important;
+}
+
+:root[data-theme="dark"] .hover\:bg-white:hover,
+:root[data-theme="dark"] .hover\:bg-white\/50:hover,
+:root[data-theme="dark"] .hover\:bg-white\/75:hover,
+:root[data-theme="dark"] .hover\:bg-white\/88:hover,
+:root[data-theme="dark"] .hover\:bg-gray-50:hover,
+:root[data-theme="dark"] .hover\:bg-gray-100:hover,
+:root[data-theme="dark"] .hover\:bg-primary-50:hover,
+:root[data-theme="dark"] .hover\:bg-primary-100:hover,
+:root[data-theme="dark"] .hover\:bg-slate-50:hover,
+:root[data-theme="dark"] .hover\:bg-sky-50:hover,
+:root[data-theme="dark"] .hover\:bg-sky-100:hover,
+:root[data-theme="dark"] .hover\:bg-blue-50:hover,
+:root[data-theme="dark"] .hover\:bg-blue-100:hover,
+:root[data-theme="dark"] .hover\:bg-green-50:hover,
+:root[data-theme="dark"] .hover\:bg-green-100:hover {
+  background-color: var(--glimmer-surface-card-hover) !important;
 }

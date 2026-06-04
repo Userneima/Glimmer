@@ -1,11 +1,13 @@
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use std::collections::BTreeMap;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdin, Command, Stdio};
 use std::sync::{Mutex, OnceLock};
+use tauri::Manager;
 
 const REMINDERS_SWIFT: &str = include_str!("reminders_bridge.swift");
 static REMINDERS_SERVER: OnceLock<Mutex<Option<RemindersBridgeServer>>> = OnceLock::new();
@@ -83,6 +85,12 @@ struct LocalBackupPayload {
 #[serde(rename_all = "camelCase")]
 struct LocalBackupResult {
     path: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DesktopStorePayload {
+    entries: BTreeMap<String, String>,
 }
 
 fn backup_dir() -> Result<PathBuf, String> {
@@ -536,6 +544,41 @@ fn write_local_backup(payload: LocalBackupPayload) -> Result<LocalBackupResult, 
     })
 }
 
+fn desktop_store_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    let dir = app.path().app_data_dir().map_err(|err| err.to_string())?;
+    Ok(dir.join("glimmer-store.json"))
+}
+
+#[tauri::command]
+fn read_desktop_store(app: tauri::AppHandle) -> Result<BTreeMap<String, String>, String> {
+    let path = desktop_store_path(&app)?;
+    if !path.exists() {
+        return Ok(BTreeMap::new());
+    }
+
+    let content = std::fs::read_to_string(&path).map_err(|err| err.to_string())?;
+    if content.trim().is_empty() {
+        return Ok(BTreeMap::new());
+    }
+
+    serde_json::from_str::<BTreeMap<String, String>>(&content).map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+fn write_desktop_store(app: tauri::AppHandle, payload: DesktopStorePayload) -> Result<(), String> {
+    let path = desktop_store_path(&app)?;
+    let dir = path
+        .parent()
+        .ok_or_else(|| "Cannot resolve desktop store directory.".to_string())?;
+    std::fs::create_dir_all(dir).map_err(|err| err.to_string())?;
+
+    let temp_path = path.with_extension("json.tmp");
+    let content = serde_json::to_string_pretty(&payload.entries).map_err(|err| err.to_string())?;
+    std::fs::write(&temp_path, content).map_err(|err| err.to_string())?;
+    std::fs::rename(&temp_path, &path).map_err(|err| err.to_string())?;
+    Ok(())
+}
+
 fn main() {
     tauri::Builder::default()
         .setup(|app| {
@@ -561,7 +604,9 @@ fn main() {
             create_reminder,
             fetch_reminders,
             set_reminder_completed,
-            write_local_backup
+            write_local_backup,
+            read_desktop_store,
+            write_desktop_store
         ])
         .run(tauri::generate_context!())
         .expect("error while running Glimmer desktop app");

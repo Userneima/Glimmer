@@ -1,7 +1,6 @@
 import React from 'react';
 import { Download } from 'lucide-react';
 import { Input } from '../UI/Input';
-import { TagInput } from '../UI/TagInput';
 import { Button } from '../UI/Button';
 import { t } from '../../i18n';
 import { formatDateTime } from '../../utils/date';
@@ -13,7 +12,6 @@ interface DiaryHeaderProps {
   wordCount: number;
   isMobile?: boolean;
   onTitleChange: (title: string) => void;
-  onTagsChange: (tags: string[]) => void;
   onExport: () => void;
 }
 
@@ -22,23 +20,17 @@ export const DiaryHeader: React.FC<DiaryHeaderProps> = ({
   wordCount,
   isMobile = false,
   onTitleChange,
-  onTagsChange,
   onExport,
 }) => {
   const isLongTermMaster = isLongTermMasterDiary(diary);
   const titlePlaceholder = diary.isTemplateDiary ? t('Leave blank to use date only') : t('Untitled');
-  const tagsPlaceholder = isMobile ? t('Add tags...') : t('Add tags (press Enter)...');
 
   const containerCommon =
     'flex items-center justify-between';
 
   return (
     <div
-      className={isMobile ? 'p-4' : 'flex flex-col gap-4 p-4'}
-      style={{
-        backgroundColor: 'rgba(255, 255, 255, 0.5)',
-        borderBottom: '1px solid rgba(200, 210, 220, 0.4)',
-      }}
+      className={`glimmer-panel-header border-b ${isMobile ? 'p-4' : 'flex flex-col gap-4 p-4'}`}
     >
       <div className={containerCommon + (isMobile ? ' mb-3' : '') + ' min-w-0'}>
         <div className="flex-1 min-w-0">
@@ -81,19 +73,6 @@ export const DiaryHeader: React.FC<DiaryHeaderProps> = ({
           </Button>
         </div>
       </div>
-
-      {!isLongTermMaster && (
-        <div className={isMobile ? 'min-w-0' : 'flex min-w-0 items-center'}>
-          <div className="min-w-0 flex-1">
-            <TagInput
-              tags={diary.tags}
-              onChange={onTagsChange}
-              placeholder={tagsPlaceholder}
-              className={(isMobile ? 'mb-3 ' : '') + 'min-w-0 overflow-hidden'}
-            />
-          </div>
-        </div>
-      )}
 
       <div className="flex items-center gap-4 text-sm text-primary-500 flex-wrap">
         <span className="text-primary-300">•</span>

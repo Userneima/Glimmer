@@ -459,13 +459,11 @@ export const cloud = {
         .select('*')
         .eq('user_id', userId)
         .order('created_at', { ascending: false });
-      // If still failing (e.g. table schema severely broken), return [] to protect local data
-      if (fallback.error) return [];
+      if (fallback.error) throw fallback.error;
       return (fallback.data as DiaryRow[] | null)?.map(toDiary) ?? [];
     }
 
-    // Any other error (table missing, network, etc.) — return [] to protect local data
-    return [];
+    throw first.error;
   },
 
   async insertDiary(userId: string, diary: Diary): Promise<void> {

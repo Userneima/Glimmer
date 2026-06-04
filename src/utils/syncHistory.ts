@@ -1,4 +1,6 @@
 // Sync history tracking for CloudSyncStatus
+import { getDesktopStoreItem, removeDesktopStoreItem, setDesktopStoreItem } from './desktopStore';
+
 export type SyncHistoryEntry = {
   id: string;
   timestamp: number;
@@ -12,6 +14,55 @@ export type SyncHistoryEntry = {
 
 const HISTORY_KEY = 'sync_history';
 const MAX_HISTORY = 50;
+const BACKUP_KEY_PREFIX = 'diaries_backups';
+
+const isQuotaExceededError = (err: unknown): boolean => {
+  if (!(err instanceof Error)) return false;
+  const message = err.message.toLowerCase();
+  return (
+    err.name === 'QuotaExceededError' ||
+    err.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
+    message.includes('quota')
+  );
+};
+
+const removeInBrowserBackups = () => {
+  const keysToRemove: string[] = [];
+  for (let index = 0; index < localStorage.length; index += 1) {
+    const key = localStorage.key(index);
+    if (key && (key === BACKUP_KEY_PREFIX || key.startsWith(`${BACKUP_KEY_PREFIX}-`))) {
+      keysToRemove.push(key);
+    }
+  }
+  keysToRemove.forEach((key) => localStorage.removeItem(key));
+};
+
+const getHistoryItem = (key: string) => {
+  const desktopValue = getDesktopStoreItem(key);
+  if (desktopValue !== null) return desktopValue;
+  return localStorage.getItem(key);
+};
+
+const setHistoryItem = (key: string, value: string) => {
+  if (setDesktopStoreItem(key, value)) {
+    localStorage.removeItem(key);
+    removeInBrowserBackups();
+    return;
+  }
+
+  try {
+    localStorage.setItem(key, value);
+  } catch (err) {
+    if (!isQuotaExceededError(err)) throw err;
+    removeInBrowserBackups();
+    localStorage.setItem(key, value);
+  }
+};
+
+const removeHistoryItem = (key: string) => {
+  removeDesktopStoreItem(key);
+  localStorage.removeItem(key);
+};
 
 export class SyncHistory {
   private static instance: SyncHistory;
@@ -41,7 +92,7 @@ export class SyncHistory {
   // Get all history entries
   getAll(): SyncHistoryEntry[] {
     try {
-      const data = localStorage.getItem(HISTORY_KEY);
+      const data = getHistoryItem(HISTORY_KEY);
       if (!data) return [];
       return JSON.parse(data) as SyncHistoryEntry[];
     } catch (err) {
@@ -68,7 +119,7 @@ export class SyncHistory {
         history.splice(MAX_HISTORY);
       }
 
-      localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+      setHistoryItem(HISTORY_KEY, JSON.stringify(history));
       this.notifyListeners();
     } catch (err) {
       console.error('Failed to add sync history', err);
@@ -78,7 +129,7 @@ export class SyncHistory {
   // Clear all history
   clear(): void {
     try {
-      localStorage.removeItem(HISTORY_KEY);
+      removeHistoryItem(HISTORY_KEY);
       this.notifyListeners();
     } catch (err) {
       console.error('Failed to clear sync history', err);

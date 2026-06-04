@@ -47,11 +47,11 @@
 - 已验证做法：以 `AuthContext + cloud.fetchAiSettings/upsertAiSettings` 为准，不再只按旧 `.env` 文档理解。
 - 证据来源：`src/context/AuthContext.tsx`、`src/utils/cloud.ts`、`docs/DEEPSEEK_CONFIG.md`
 
-### 场景：月历与内容视图关系
-- 表现：常驻大月历会挤占侧栏，信息密度反而低。
-- 根因：整月日历适合总览，不适合作为侧栏默认主内容。
-- 已验证做法：侧栏默认展示当天内容，整月月历按需弹出，并在弹窗里直接提供当天预览。
-- 证据来源：`src/components/Sidebar/CalendarView.tsx`
+### 场景：日历入口下线
+- 表现：日历会把侧栏变成另一套浏览工作台，挤占写作和任务的主线。
+- 根因：Glimmer 当前应优先服务“写作 -> 整理 -> 行动/长期想法”，日期浏览不是必要入口。
+- 已验证做法：移除侧栏日历入口与 react-calendar 依赖，把回看和整理压力留给搜索和后续更轻的回看动作。
+- 证据来源：`src/components/Layout/DesktopLeftSidebar.tsx`、`src/components/Layout/AppLayout.tsx`
 
 ## 不推荐的做法
 - 不要把云端同步写成“云端是真相，本地只是缓存”。

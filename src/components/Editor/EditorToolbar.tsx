@@ -21,6 +21,8 @@ import {
 } from 'lucide-react';
 
 import { t } from '../../i18n';
+import { indentEditorSelection, outdentEditorSelection } from '../../utils/editorIndentation';
+import { HeadingStyleControl } from './HeadingStyleControl';
 
 interface EditorToolbarProps {
   editor: Editor;
@@ -102,12 +104,12 @@ const ToolbarButton: React.FC<ToolbarButtonProps> = ({ onClick, isActive, disabl
     disabled={disabled}
     className={`p-2 rounded-lg transition-colors duration-200 active:scale-95 flex items-center justify-center w-10 h-10 ${disabled ? 'cursor-not-allowed opacity-40 active:scale-100' : ''} ${className}`}
     style={{
-      backgroundColor: isActive ? 'rgba(14, 165, 233, 0.15)' : 'transparent',
+      backgroundColor: isActive ? 'var(--glimmer-surface-active)' : 'transparent',
       color: isActive ? 'var(--aurora-accent)' : 'var(--aurora-secondary)'
     }}
     onMouseEnter={(e) => {
       if (!isActive && !disabled) {
-        e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.4)';
+        e.currentTarget.style.backgroundColor = 'var(--glimmer-surface-card-hover)';
         e.currentTarget.style.color = 'var(--aurora-accent)';
       }
     }}
@@ -195,8 +197,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor }) => {
 
   return (
     <>
-      {/* 工具栏 - 毛玻璃风 */}
-      <div className="p-3 flex flex-wrap gap-0.5" style={{ backgroundColor: 'rgba(255, 255, 255, 0.5)', borderBottom: '1px solid rgba(200, 210, 220, 0.4)' }}>
+      <div className="glimmer-panel-header p-3 flex flex-wrap gap-0.5 border-b">
       <ToolbarButton
         onClick={() => editor.chain().focus().undo().run()}
         title={t('Undo')}
@@ -223,6 +224,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor }) => {
           </ToolbarButton>
         ))}
       </div>
+      <HeadingStyleControl />
 
       <ToolbarButton
         onClick={() => editor.chain().focus().toggleBulletList().run()}
@@ -239,7 +241,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor }) => {
         <ListOrdered size={18} strokeWidth={1.75} />
       </ToolbarButton>
       {orderedListState && (
-        <div className="flex rounded-lg border border-slate-200/70 bg-white/35">
+        <div className="flex rounded-lg border" style={{ borderColor: 'var(--glimmer-border)', backgroundColor: 'var(--glimmer-surface-card)' }}>
           <ToolbarButton
             onClick={() => {
               if (!orderedListState.continuationStart) return;
@@ -270,52 +272,14 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor }) => {
       </ToolbarButton>
 
       <ToolbarButton
-        onClick={() => {
-          // Indent current paragraph: insert two spaces at the beginning of the current paragraph
-          const { state, dispatch } = editor.view;
-          const { $from } = state.selection;
-          
-          // Find the start position of the current paragraph/block node
-          const paragraphStart = $from.start($from.depth);
-          
-          // Skip inserting spaces at the very beginning of the document
-          // unless there's already content after it
-          const isAtDocumentStart = paragraphStart === 0;
-          const hasContentAfter = paragraphStart < state.doc.nodeSize - 2;
-          
-          if (!isAtDocumentStart || (isAtDocumentStart && hasContentAfter)) {
-            const tr = state.tr.insertText('  ', paragraphStart, paragraphStart);
-            dispatch(tr);
-          }
-        }}
+        onClick={() => indentEditorSelection(editor)}
         title={t('Indent')}
       >
         <Indent size={18} strokeWidth={1.75} />
       </ToolbarButton>
 
       <ToolbarButton
-        onClick={() => {
-          // Outdent current paragraph: remove two spaces from the beginning of the current paragraph
-          const { state, dispatch } = editor.view;
-          const { $from } = state.selection;
-          
-          // Find the start position of the current paragraph/block node
-          const paragraphStart = $from.start($from.depth);
-          
-          // Check if there are spaces to remove
-          if (paragraphStart < state.doc.nodeSize - 2) {
-            const text = state.doc.textBetween(paragraphStart, paragraphStart + 2);
-            if (text === '  ') {
-              // Remove two spaces
-              const tr = state.tr.delete(paragraphStart, paragraphStart + 2);
-              dispatch(tr);
-            } else if (text === '\t') {
-              // Remove tab character for backward compatibility
-              const tr = state.tr.delete(paragraphStart, paragraphStart + 1);
-              dispatch(tr);
-            }
-          }
-        }}
+        onClick={() => outdentEditorSelection(editor)}
         title={t('Outdent')}
       >
         <Outdent size={18} strokeWidth={1.75} />

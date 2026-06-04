@@ -106,16 +106,15 @@ export const FolderTree: React.FC<FolderTreeProps> = ({
   }, [folders]);
 
   return (
-    <div className="h-full flex flex-col" style={{ backgroundColor: 'rgba(255, 255, 255, 0.75)' }}>
-      {/* 标题区 - 毛玻璃风 */}
-      <div className="p-4" style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.2)' }}>
+    <div className="glimmer-panel h-full flex flex-col">
+      <div className="glimmer-panel-header p-4 border-b">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-lg font-semibold" style={{ color: 'var(--aurora-primary)' }}>{t('Folders')}</h2>
           <button
             onClick={() => setIsCreateModalOpen(true)}
             className="p-1.5 rounded-xl transition-all duration-200"
             style={{ color: 'var(--aurora-accent)' }}
-            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(14, 165, 233, 0.15)'; }}
+            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--glimmer-surface-active)'; }}
             onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
             title={t('New Folder')}
           >
@@ -125,22 +124,22 @@ export const FolderTree: React.FC<FolderTreeProps> = ({
         {/* 全部日记按钮 - 毛玻璃卡片 */}
         <button
           onClick={() => onSelectFolder(null)}
-          className={`w-full text-left px-3 py-2.5 rounded-xl transition-colors duration-200 border border-slate-200/60 ${
+          className={`w-full text-left px-3 py-2.5 rounded-xl transition-colors duration-200 border ${
             dragOverTarget === 'all' ? 'shadow-sm' : ''
           }`}
           style={{
-            backgroundColor: selectedFolderId === null ? 'rgba(14, 165, 233, 0.15)' : 'rgba(255, 255, 255, 0.4)',
+            backgroundColor: selectedFolderId === null ? 'var(--glimmer-surface-active)' : 'var(--glimmer-surface-card)',
             color: selectedFolderId === null ? 'var(--aurora-accent)' : 'var(--aurora-primary)',
-            borderColor: selectedFolderId === null ? 'var(--aurora-accent)' : 'rgba(255, 255, 255, 0.3)'
+            borderColor: selectedFolderId === null ? 'var(--glimmer-border-strong)' : 'var(--glimmer-border)'
           }}
           onMouseEnter={(e) => {
             if (selectedFolderId !== null) {
-              e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.6)';
+              e.currentTarget.style.backgroundColor = 'var(--glimmer-surface-card-hover)';
             }
           }}
           onMouseLeave={(e) => {
             if (selectedFolderId !== null) {
-              e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.4)';
+              e.currentTarget.style.backgroundColor = 'var(--glimmer-surface-card)';
             }
           }}
           onDragOver={(e) => {
@@ -159,22 +158,22 @@ export const FolderTree: React.FC<FolderTreeProps> = ({
         {rootFolders.map(folder => (
           <div key={folder.id} className="mb-1.5">
             <div
-              className={`flex items-center justify-between px-3 py-2.5 rounded-xl cursor-pointer transition-colors duration-200 group border border-slate-200/60 ${
+              className={`flex items-center justify-between px-3 py-2.5 rounded-xl cursor-pointer transition-colors duration-200 group border ${
                 dragOverTarget === folder.id ? 'shadow-sm' : ''
               }`}
               style={{
-                backgroundColor: selectedFolderId === folder.id ? 'rgba(14, 165, 233, 0.15)' : 'rgba(255, 255, 255, 0.4)',
+                backgroundColor: selectedFolderId === folder.id ? 'var(--glimmer-surface-active)' : 'var(--glimmer-surface-card)',
                 color: selectedFolderId === folder.id ? 'var(--aurora-accent)' : 'var(--aurora-primary)',
-                borderColor: selectedFolderId === folder.id ? 'var(--aurora-accent)' : 'rgba(255, 255, 255, 0.3)'
+                borderColor: selectedFolderId === folder.id ? 'var(--glimmer-border-strong)' : 'var(--glimmer-border)'
               }}
               onMouseEnter={(e) => {
                 if (selectedFolderId !== folder.id) {
-                  e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.6)';
+                  e.currentTarget.style.backgroundColor = 'var(--glimmer-surface-card-hover)';
                 }
               }}
               onMouseLeave={(e) => {
                 if (selectedFolderId !== folder.id) {
-                  e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.4)';
+                  e.currentTarget.style.backgroundColor = 'var(--glimmer-surface-card)';
                 }
               }}
               onDragOver={(e) => {

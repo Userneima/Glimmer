@@ -24,21 +24,17 @@ export const Input: React.FC<InputProps> = ({
   const variantStyles = {
     default: `
       px-4 py-2.5
-      bg-white
-      border border-primary-200
+      glimmer-field
       rounded-apple
       shadow-apple-inner
       focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20 focus:outline-none
-      hover:border-primary-300
       ${error ? 'border-semantic-error focus:border-semantic-error focus:ring-semantic-error/20' : ''}
     `.replace(/\s+/g, ' ').trim(),
     filled: `
       px-4 py-2.5
-      bg-primary-100
-      border border-transparent
+      glimmer-field
       rounded-apple
-      focus:bg-white focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20 focus:outline-none
-      hover:bg-primary-50
+      focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20 focus:outline-none
       ${error ? 'bg-red-50 focus:border-semantic-error focus:ring-semantic-error/20' : ''}
     `.replace(/\s+/g, ' ').trim(),
     minimal: `

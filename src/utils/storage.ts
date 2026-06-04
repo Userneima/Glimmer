@@ -1,5 +1,7 @@
 import { LONG_TERM_MASTER_ID, TEMPLATE_DIARY_ID, type Diary, type Folder, type Task, type AnalysisResult, type Tag, type LongTermIdea, type AutoAnalysisState, type DiaryInsight, type ReviewDigest } from '../types';
-import type { DiaryTagColors } from './diaryTags';
+import { getDesktopStoreItem, isDesktopStoreActive, removeDesktopStoreItem, setDesktopStoreItem } from './desktopStore';
+
+type DiaryTagColors = Record<string, string>;
 
 export type Backup = {
   timestamp: number;
@@ -20,7 +22,7 @@ const FOLDERS_KEY = 'folders';
 const BACKUPS_KEY = 'diaries_backups';
 const DIARY_INSIGHTS_KEY = 'diary_insights';
 const REVIEW_DIGESTS_KEY = 'review_digests';
-const MAX_BACKUPS = 10;
+const MAX_BACKUPS = 2;
 const LEGACY_LONG_TERM_MASTER_ID = 'long-term-master';
 const ACCOUNT_SCOPED_DATA_KEYS = [
   DIARIES_KEY,
@@ -70,7 +72,7 @@ const asStorageObject = (value: unknown): StorageObject => {
 };
 
 const readJson = (key: string): unknown => {
-  const data = localStorage.getItem(getKey(key));
+  const data = getStorageItem(getKey(key));
   if (!data) return null;
 
   try {
@@ -136,6 +138,54 @@ const hasMeaningfulStoredData = (key: string, raw: string | null): boolean => {
   }
 };
 
+const isQuotaExceededError = (err: unknown): boolean => {
+  if (!(err instanceof Error)) return false;
+  const message = err.message.toLowerCase();
+  return (
+    err.name === 'QuotaExceededError' ||
+    err.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
+    message.includes('quota')
+  );
+};
+
+const removeInBrowserBackups = () => {
+  localStorage.removeItem(getKey(BACKUPS_KEY));
+  localStorage.removeItem(BACKUPS_KEY);
+};
+
+const getStorageItem = (key: string): string | null => {
+  const desktopValue = getDesktopStoreItem(key);
+  if (desktopValue !== null) return desktopValue;
+  return localStorage.getItem(key);
+};
+
+const setStorageItem = (key: string, value: string): void => {
+  if (setDesktopStoreItem(key, value)) {
+    removeInBrowserBackups();
+    localStorage.removeItem(key);
+    return;
+  }
+
+  try {
+    localStorage.setItem(key, value);
+  } catch (err) {
+    if (!isQuotaExceededError(err)) throw err;
+
+    // Browser localStorage is small. Keep primary data writable by dropping
+    // disposable in-browser snapshots; desktop file backups remain separate.
+    removeInBrowserBackups();
+    localStorage.setItem(key, value);
+  }
+};
+
+const removeStorageItem = (key: string): void => {
+  if (removeDesktopStoreItem(key)) {
+    localStorage.removeItem(key);
+    return;
+  }
+  localStorage.removeItem(key);
+};
+
 const mergeArraysByStableKey = <T extends StorageObject>(
   source: unknown,
   target: unknown,
@@ -194,13 +244,13 @@ export const storage = {
     ACCOUNT_SCOPED_DATA_KEYS.forEach((key) => {
       const sourceKey = getKeyForUser(key, null);
       const targetKey = getKeyForUser(key, userId);
-      const source = localStorage.getItem(sourceKey);
-      const target = localStorage.getItem(targetKey);
+      const source = getStorageItem(sourceKey);
+      const target = getStorageItem(targetKey);
 
       if (source && hasMeaningfulStoredData(key, source)) {
         const next = mergeStoredData(key, source, target);
         if (next !== target) {
-          localStorage.setItem(targetKey, next);
+          setStorageItem(targetKey, next);
           changed = true;
         }
       }
@@ -215,7 +265,7 @@ export const storage = {
   },
 
   saveDiaries(diaries: Diary[]): void {
-    localStorage.setItem(getKey(DIARIES_KEY), JSON.stringify(diaries));
+    setStorageItem(getKey(DIARIES_KEY), JSON.stringify(diaries));
     // record a snapshot after changes to help recovery
     try {
       this.saveSnapshotIfChanged();
@@ -251,7 +301,7 @@ export const storage = {
   },
 
   saveFolders(folders: Folder[]): void {
-    localStorage.setItem(getKey(FOLDERS_KEY), JSON.stringify(folders));
+    setStorageItem(getKey(FOLDERS_KEY), JSON.stringify(folders));
     try {
       this.saveSnapshotIfChanged();
     } catch (err) {
@@ -309,7 +359,7 @@ export const storage = {
   },
 
   saveTasks(tasks: Task[]): void {
-    localStorage.setItem(getKey('tasks'), JSON.stringify(tasks));
+    setStorageItem(getKey('tasks'), JSON.stringify(tasks));
     try {
       this.saveSnapshotIfChanged();
     } catch (err) {
@@ -343,7 +393,7 @@ export const storage = {
   },
 
   saveTags(tags: Tag[]): void {
-    localStorage.setItem(getKey('tags'), JSON.stringify(tags));
+    setStorageItem(getKey('tags'), JSON.stringify(tags));
     try {
       this.saveSnapshotIfChanged();
     } catch (err) {
@@ -376,7 +426,7 @@ export const storage = {
   },
 
   saveDiaryTagColors(colors: DiaryTagColors): void {
-    localStorage.setItem(getKey('diary_tag_colors'), JSON.stringify(colors));
+    setStorageItem(getKey('diary_tag_colors'), JSON.stringify(colors));
     try {
       this.saveSnapshotIfChanged();
     } catch (err) {
@@ -390,7 +440,7 @@ export const storage = {
   },
 
   saveLongTermIdeas(ideas: LongTermIdea[]): void {
-    localStorage.setItem(getKey('long_term_ideas'), JSON.stringify(ideas));
+    setStorageItem(getKey('long_term_ideas'), JSON.stringify(ideas));
     try {
       this.saveSnapshotIfChanged();
     } catch (err) {
@@ -424,7 +474,7 @@ export const storage = {
   },
 
   saveAiSettings(settings: AiSettings): void {
-    localStorage.setItem(getKey('ai_settings'), JSON.stringify(settings));
+    setStorageItem(getKey('ai_settings'), JSON.stringify(settings));
   },
 
   // Analysis results
@@ -435,11 +485,11 @@ export const storage = {
   addAnalysis(a: AnalysisResult): void {
     const arr = this.getAnalyses();
     arr.push(a);
-    localStorage.setItem(getKey('analyses'), JSON.stringify(arr));
+    setStorageItem(getKey('analyses'), JSON.stringify(arr));
   },
 
   saveAnalyses(arr: AnalysisResult[]): void {
-    localStorage.setItem(getKey('analyses'), JSON.stringify(arr));
+    setStorageItem(getKey('analyses'), JSON.stringify(arr));
     try {
       this.saveSnapshotIfChanged();
     } catch (err) {
@@ -452,7 +502,7 @@ export const storage = {
   },
 
   saveAutoAnalysisState(state: Record<string, AutoAnalysisState>): void {
-    localStorage.setItem(getKey('auto_analysis_state'), JSON.stringify(state));
+    setStorageItem(getKey('auto_analysis_state'), JSON.stringify(state));
     try {
       this.saveSnapshotIfChanged();
     } catch (err) {
@@ -475,7 +525,7 @@ export const storage = {
   },
 
   saveDiaryInsights(insights: DiaryInsight[]): void {
-    localStorage.setItem(getKey(DIARY_INSIGHTS_KEY), JSON.stringify(insights));
+    setStorageItem(getKey(DIARY_INSIGHTS_KEY), JSON.stringify(insights));
     try {
       this.saveSnapshotIfChanged();
     } catch (err) {
@@ -515,7 +565,7 @@ export const storage = {
   },
 
   saveReviewDigests(digests: ReviewDigest[]): void {
-    localStorage.setItem(getKey(REVIEW_DIGESTS_KEY), JSON.stringify(digests));
+    setStorageItem(getKey(REVIEW_DIGESTS_KEY), JSON.stringify(digests));
     try {
       this.saveSnapshotIfChanged();
     } catch (err) {
@@ -540,18 +590,18 @@ export const storage = {
   },
 
   clearUserData(): void {
-    localStorage.removeItem(getKey(DIARIES_KEY));
-    localStorage.removeItem(getKey(FOLDERS_KEY));
-    localStorage.removeItem(getKey('tasks'));
-    localStorage.removeItem(getKey('tags'));
-    localStorage.removeItem(getKey('diary_tag_colors'));
-    localStorage.removeItem(getKey('long_term_ideas'));
-    localStorage.removeItem(getKey('analyses'));
-    localStorage.removeItem(getKey('auto_analysis_state'));
-    localStorage.removeItem(getKey(DIARY_INSIGHTS_KEY));
-    localStorage.removeItem(getKey(REVIEW_DIGESTS_KEY));
-    localStorage.removeItem(getKey('ai_settings'));
-    localStorage.removeItem(getKey(BACKUPS_KEY));
+    removeStorageItem(getKey(DIARIES_KEY));
+    removeStorageItem(getKey(FOLDERS_KEY));
+    removeStorageItem(getKey('tasks'));
+    removeStorageItem(getKey('tags'));
+    removeStorageItem(getKey('diary_tag_colors'));
+    removeStorageItem(getKey('long_term_ideas'));
+    removeStorageItem(getKey('analyses'));
+    removeStorageItem(getKey('auto_analysis_state'));
+    removeStorageItem(getKey(DIARY_INSIGHTS_KEY));
+    removeStorageItem(getKey(REVIEW_DIGESTS_KEY));
+    removeStorageItem(getKey('ai_settings'));
+    removeStorageItem(getKey(BACKUPS_KEY));
   },
 
 
@@ -561,7 +611,22 @@ export const storage = {
   },
 
   privateSaveBackups(backups: Backup[]) {
-    localStorage.setItem(getKey(BACKUPS_KEY), JSON.stringify(backups));
+    if (isDesktopStoreActive()) {
+      removeInBrowserBackups();
+      return;
+    }
+
+    let next = backups.slice(-MAX_BACKUPS);
+    while (next.length > 0) {
+      try {
+        localStorage.setItem(getKey(BACKUPS_KEY), JSON.stringify(next));
+        return;
+      } catch (err) {
+        if (!isQuotaExceededError(err)) throw err;
+        next = next.slice(1);
+      }
+    }
+    localStorage.removeItem(getKey(BACKUPS_KEY));
   },
 
   saveSnapshotIfChanged(): void {

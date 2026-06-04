@@ -231,7 +231,7 @@ export const TextBubbleMenu: React.FC<TextBubbleMenuProps> = ({ editor }) => {
   return (
     <>
       <div
-        className="fixed z-50 -translate-x-1/2 bg-white/95 backdrop-blur-apple border border-primary-200 rounded-apple-lg shadow-apple-lg p-1.5 flex items-center gap-1"
+        className="glimmer-panel fixed z-50 -translate-x-1/2 backdrop-blur-apple border rounded-apple-lg shadow-apple-lg p-1.5 flex items-center gap-1"
         style={{ top: `${position.top}px`, left: `${position.left}px` }}
       >
         {isImageMode ? (

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef } from 'react';
-import { useEditor, EditorContent } from '@tiptap/react';
+import { useEditor, EditorContent, type Editor as TiptapEditor } from '@tiptap/react';
 import { Extension } from '@tiptap/core';
 import { AllSelection, Plugin, TextSelection } from 'prosemirror-state';
 import { CellSelection, TableMap, cellAround, findTable, isInTable, selectedRect } from 'prosemirror-tables';
@@ -21,6 +21,7 @@ import { EditorToolbar } from './EditorToolbar';
 import { TextBubbleMenu } from './TextBubbleMenu';
 import { TableBubbleMenu } from './TableBubbleMenu';
 import { isLikelyMarkdown, markdownToHtml } from '../../utils/markdown';
+import { indentEditorSelection, outdentEditorSelection } from '../../utils/editorIndentation';
 
 const CascadeTaskCompletion = Extension.create({
   name: 'cascadeTaskCompletion',
@@ -29,26 +30,11 @@ const CascadeTaskCompletion = Extension.create({
     return [
       new Plugin({
         appendTransaction: (transactions, oldState, newState) => {
-          const userChangedTaskState = transactions.some((transaction) => {
-            if (!transaction.docChanged || transaction.getMeta('preventUpdate')) {
-              return false;
-            }
+          const hasDocumentChange = transactions.some((transaction) => (
+            transaction.docChanged && !transaction.getMeta('preventUpdate')
+          ));
 
-            return transaction.steps.some((step) => {
-              const json = step.toJSON() as {
-                stepType?: string;
-                attr?: string;
-                value?: unknown;
-                newAttrs?: Record<string, unknown>;
-              };
-              return (
-                (json.stepType === 'attr' && json.attr === 'checked' && json.value === true) ||
-                json.newAttrs?.checked === true
-              );
-            });
-          });
-
-          if (!userChangedTaskState) {
+          if (!hasDocumentChange) {
             return null;
           }
 
@@ -61,7 +47,7 @@ const CascadeTaskCompletion = Extension.create({
             }
 
             if (position > oldState.doc.content.size) {
-              return false;
+              return;
             }
 
             let oldNode = null;
@@ -168,6 +154,32 @@ export const Editor: React.FC<EditorProps> = ({
     []
   );
 
+  const CustomTaskItem = useMemo(
+    () =>
+      TaskItem.extend({
+        addAttributes() {
+          return {
+            ...this.parent?.(),
+            carryoverStatus: {
+              default: null,
+              parseHTML: (element) => element.getAttribute('data-carryover-status'),
+              renderHTML: (attributes) =>
+                attributes.carryoverStatus ? { 'data-carryover-status': attributes.carryoverStatus } : {},
+            },
+            carriedTo: {
+              default: null,
+              parseHTML: (element) => element.getAttribute('data-carried-to'),
+              renderHTML: (attributes) =>
+                attributes.carriedTo ? { 'data-carried-to': attributes.carriedTo } : {},
+            },
+          };
+        },
+      }).configure({
+        nested: true,
+      }),
+    []
+  );
+
   const extensions = useMemo(() => [
     StarterKit.configure({
       heading: {
@@ -215,18 +227,16 @@ export const Editor: React.FC<EditorProps> = ({
     CustomTableCell,
     CustomTableHeader,
     TaskList,
-    TaskItem.configure({
-      nested: true,
-    }),
+    CustomTaskItem,
     CascadeTaskCompletion,
     Highlight.configure({
       multicolor: true,
     }),
     TextStyle,
     Color,
-  ], [CustomTableCell, CustomTableHeader]);
+  ], [CustomTableCell, CustomTableHeader, CustomTaskItem]);
 
-  const editor = useEditor({
+  const editor: TiptapEditor | null = useEditor({
     extensions,
     content,
     editable,
@@ -249,7 +259,7 @@ export const Editor: React.FC<EditorProps> = ({
         editor?.chain().focus().insertContent(markdownToHtml(plainText)).run();
         return true;
       },
-      handleKeyDown: (view, event) => {
+      handleKeyDown: (view, event): boolean => {
         if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'a') {
           const { state, dispatch } = view;
           const { selection, doc } = state;
@@ -305,60 +315,11 @@ export const Editor: React.FC<EditorProps> = ({
 
         if (event.key === 'Tab') {
           event.preventDefault();
-          const { state, dispatch } = view;
-          const { $from } = state.selection;
-
-          if (editor) {
-            if (editor.isActive('taskItem')) {
-              const handled = event.shiftKey
-                ? editor.chain().focus().liftListItem('taskItem').run()
-                : editor.chain().focus().sinkListItem('taskItem').run();
-
-              if (handled) {
-                return true;
-              }
-            }
-
-            if (editor.isActive('bulletList') || editor.isActive('orderedList')) {
-              const handled = event.shiftKey
-                ? editor.chain().focus().liftListItem('listItem').run()
-                : editor.chain().focus().sinkListItem('listItem').run();
-
-              if (handled) {
-                return true;
-              }
-            }
-          }
-
-          // Find the start position of the current paragraph/block node
-          const position = $from.start($from.depth);
-
-          if (event.shiftKey) {
-            // Shift+Tab: Outdent (remove two spaces)
-            if (position < state.doc.nodeSize - 2) {
-              const text = state.doc.textBetween(position, position + 2);
-              if (text === '  ') {
-                const tr = state.tr.delete(position, position + 2);
-                dispatch(tr);
-              } else if (text === '\t') {
-                // Also handle tab characters for backward compatibility
-                const tr = state.tr.delete(position, position + 1);
-                dispatch(tr);
-              }
-            }
-          } else {
-            // Tab: Indent (add two spaces)
-            // Skip inserting spaces at the very beginning of the document
-            // unless there's already content after it
-            const isAtDocumentStart = position === 0;
-            const hasContentAfter = position < state.doc.nodeSize - 2;
-            
-            if (!isAtDocumentStart || (isAtDocumentStart && hasContentAfter)) {
-              const tr = state.tr.insertText('  ', position, position);
-              dispatch(tr);
-            }
-          }
-          return true;
+          return editor
+            ? event.shiftKey
+              ? outdentEditorSelection(editor)
+              : indentEditorSelection(editor)
+            : true;
         }
         return false;
       },
@@ -428,8 +389,7 @@ export const Editor: React.FC<EditorProps> = ({
   }
 
   return (
-    /* 编辑器主容器 - 毛玻璃风 */
-    <div className="flex flex-col h-full" style={{ backgroundColor: 'rgba(255, 255, 255, 0.75)' }} ref={editorContentRef}>
+    <div className="flex flex-col h-full" style={{ backgroundColor: 'var(--glimmer-editor-bg)' }} ref={editorContentRef}>
       {editable && (
         <EditorToolbar editor={editor} />
       )}

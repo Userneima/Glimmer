@@ -175,16 +175,16 @@ export const CloudSyncStatus: React.FC<CloudSyncStatusProps> = ({
 
       {/* Expanded Panel */}
       {isExpanded && (
-        <div className={`absolute mb-2 bg-white border border-gray-200 rounded-lg shadow-lg z-50 ${
+        <div className={`glimmer-popover absolute mb-2 border rounded-lg shadow-lg z-50 ${
           compact ? 'bottom-full left-1/2 -translate-x-1/2 w-72' : 'bottom-full left-0 w-full max-w-xs'
         }`}>
           {/* Tabs */}
-          <div className="flex border-b bg-gray-50 rounded-t-lg">
+          <div className="glimmer-panel-header flex border-b rounded-t-lg">
             <button
               onClick={() => setActiveTab('status')}
               className={`flex-1 px-3 py-2 text-sm font-medium transition-colors ${
                 activeTab === 'status'
-                  ? 'text-blue-600 border-b-2 border-blue-600 bg-white'
+                  ? 'text-blue-600 border-b-2 border-blue-600 glimmer-card'
                   : 'text-gray-600 hover:text-gray-900'
               }`}
             >
@@ -194,7 +194,7 @@ export const CloudSyncStatus: React.FC<CloudSyncStatusProps> = ({
               onClick={() => setActiveTab('history')}
               className={`flex-1 px-3 py-2 text-sm font-medium transition-colors ${
                 activeTab === 'history'
-                  ? 'text-blue-600 border-b-2 border-blue-600 bg-white'
+                  ? 'text-blue-600 border-b-2 border-blue-600 glimmer-card'
                   : 'text-gray-600 hover:text-gray-900'
               }`}
             >
@@ -232,7 +232,7 @@ export const CloudSyncStatus: React.FC<CloudSyncStatusProps> = ({
 
               {/* User Info */}
               {userEmail && (
-                <div className="px-3 py-2 border-b bg-gray-50">
+                <div className="glimmer-panel-header px-3 py-2 border-b">
                   <div className="flex items-center gap-2 text-sm text-gray-700">
                     <User size={14} className="shrink-0" />
                     <span className="truncate">{userEmail}</span>
@@ -283,7 +283,7 @@ export const CloudSyncStatus: React.FC<CloudSyncStatusProps> = ({
             <div className="max-h-80 overflow-y-auto">
               {/* Clear History Button */}
               {historyEntries.length > 0 && (
-                <div className="px-3 py-2 border-b bg-gray-50 flex justify-end">
+                <div className="glimmer-panel-header px-3 py-2 border-b flex justify-end">
                   <button
                     onClick={handleClearHistory}
                     className="flex items-center gap-1 px-2 py-1 text-xs text-red-600 hover:bg-red-50 rounded transition-colors"

@@ -1,25 +1,22 @@
 import React from 'react';
 import {
   BookOpen,
-  Calendar as CalendarIcon,
   FileText,
   Folder as FolderIcon,
   ListChecks,
   Lock,
   LockOpen,
+  Moon,
   Settings,
-  Tag as TagIcon,
+  Sun,
 } from 'lucide-react';
-import type { Diary, Folder } from '../../types';
-import type { DiaryTagMergeSuggestion } from '../../utils/diaryTags';
+import type { Folder } from '../../types';
 import { t } from '../../i18n';
-import { CalendarView } from '../Sidebar/CalendarView';
 import { FolderTree } from '../Sidebar/FolderTree';
-import { TagPanel } from '../Sidebar/TagPanel';
 import { TaskList } from '../Sidebar/TaskList';
 import { CloudSyncStatus } from '../UI/CloudSyncStatus';
 
-export type LeftPanelView = 'folders' | 'tags' | 'calendar' | 'tasks';
+export type LeftPanelView = 'folders' | 'tasks';
 
 type DesktopLeftSidebarProps = {
   isPinned: boolean;
@@ -27,9 +24,7 @@ type DesktopLeftSidebarProps = {
   hasTaskListModalOpen: boolean;
   leftPanelView: LeftPanelView;
   folders: Folder[];
-  visibleDiaries: Diary[];
   selectedFolderId: string | null;
-  selectedTags: string[];
   showCloudStatus: boolean;
   userEmail: string | null;
   onExpandChange: (expanded: boolean) => void;
@@ -41,15 +36,6 @@ type DesktopLeftSidebarProps = {
   onMoveDiary: (diaryId: string, folderId: string | null) => void;
   canMoveDiary?: (diaryId: string) => boolean;
   onSelectFolder: (folderId: string | null) => void;
-  onSelectTag: (tag: string) => void;
-  onClearTags: () => void;
-  onRenameTag: (oldTag: string, newTag: string) => void;
-  onMergeTags: (tags: string[], newTag: string) => void;
-  onApplyTagMergeSuggestions: (suggestions: DiaryTagMergeSuggestion[]) => void;
-  onDeleteTag: (tag: string) => void;
-  onSelectDiary: (id: string) => void;
-  onCreateDiary: (date: Date) => void;
-  onChangeDiaryDate: (id: string, date: Date) => void;
   onTaskModalStateChange: (hasModalOpen: boolean) => void;
   onRetrySync: () => void;
   onSwitchAccount: () => void;
@@ -57,12 +43,12 @@ type DesktopLeftSidebarProps = {
   onOpenLongTermIdeas: () => void;
   onOpenTemplateDiary: () => void;
   onOpenSettings: () => void;
+  theme: 'light' | 'dark';
+  onToggleTheme: () => void;
 };
 
 const sidebarTabs = [
   { key: 'folders', label: t('Folders'), icon: FolderIcon },
-  { key: 'tags', label: t('Tags'), icon: TagIcon },
-  { key: 'calendar', label: t('Calendar'), icon: CalendarIcon },
   { key: 'tasks', label: t('Tasks'), icon: ListChecks },
 ] as const;
 
@@ -72,7 +58,7 @@ const iconButtonStyle = {
 };
 
 const handleIconEnter = (event: React.MouseEvent<HTMLButtonElement>) => {
-  event.currentTarget.style.backgroundColor = 'rgba(14, 165, 233, 0.15)';
+  event.currentTarget.style.backgroundColor = 'var(--glimmer-surface-active)';
   event.currentTarget.style.color = 'var(--aurora-accent)';
 };
 
@@ -87,9 +73,7 @@ export const DesktopLeftSidebar: React.FC<DesktopLeftSidebarProps> = ({
   hasTaskListModalOpen,
   leftPanelView,
   folders,
-  visibleDiaries,
   selectedFolderId,
-  selectedTags,
   showCloudStatus,
   userEmail,
   onExpandChange,
@@ -101,15 +85,6 @@ export const DesktopLeftSidebar: React.FC<DesktopLeftSidebarProps> = ({
   onMoveDiary,
   canMoveDiary,
   onSelectFolder,
-  onSelectTag,
-  onClearTags,
-  onRenameTag,
-  onMergeTags,
-  onApplyTagMergeSuggestions,
-  onDeleteTag,
-  onSelectDiary,
-  onCreateDiary,
-  onChangeDiaryDate,
   onTaskModalStateChange,
   onRetrySync,
   onSwitchAccount,
@@ -117,16 +92,17 @@ export const DesktopLeftSidebar: React.FC<DesktopLeftSidebarProps> = ({
   onOpenLongTermIdeas,
   onOpenTemplateDiary,
   onOpenSettings,
+  theme,
+  onToggleTheme,
 }) => {
   const isOpen = isPinned || isExpanded;
 
   return (
     <div
-      className={`flex-shrink-0 flex flex-col overflow-hidden border-r border-slate-200/60 ${
+      className={`glimmer-panel flex-shrink-0 flex flex-col overflow-hidden border-r ${
         isOpen ? 'w-64' : 'w-12'
       }`}
       style={{
-        backgroundColor: 'rgba(255, 255, 255, 0.75)',
         transition: 'width 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
         willChange: 'width',
       }}
@@ -141,11 +117,10 @@ export const DesktopLeftSidebar: React.FC<DesktopLeftSidebarProps> = ({
       }}
     >
       <div
-        className={isOpen ? 'px-3 py-3' : 'flex flex-col'}
-        style={{ backgroundColor: 'rgba(241, 245, 249, 0.72)' }}
+        className={`glimmer-panel-header ${isOpen ? 'px-3 py-3' : 'flex flex-col'}`}
       >
         {isOpen ? (
-          <div className="grid grid-cols-4 gap-1">
+          <div className="grid grid-cols-2 gap-1">
             {sidebarTabs.map(({ key, label, icon: Icon }) => {
               const isActive = leftPanelView === key;
               return (
@@ -157,8 +132,8 @@ export const DesktopLeftSidebar: React.FC<DesktopLeftSidebarProps> = ({
                   }`}
                   style={{
                     color: isActive ? 'var(--aurora-accent)' : 'var(--aurora-secondary)',
-                    backgroundColor: isActive ? 'rgba(14, 165, 233, 0.11)' : 'transparent',
-                    boxShadow: isActive ? 'inset 0 -2px 0 rgba(14, 165, 233, 0.55)' : 'none',
+                    backgroundColor: isActive ? 'var(--glimmer-surface-active)' : 'transparent',
+                    boxShadow: isActive ? 'inset 0 -2px 0 var(--aurora-accent)' : 'none',
                   }}
                 >
                   <Icon size={15} />
@@ -175,7 +150,7 @@ export const DesktopLeftSidebar: React.FC<DesktopLeftSidebarProps> = ({
               className="flex-col w-12 h-12 flex items-center justify-center gap-1.5 font-medium transition-all duration-200 ease-apple"
               style={{
                 color: leftPanelView === key ? 'var(--aurora-accent)' : 'var(--aurora-secondary)',
-                backgroundColor: leftPanelView === key ? 'rgba(14, 165, 233, 0.15)' : 'transparent',
+                backgroundColor: leftPanelView === key ? 'var(--glimmer-surface-active)' : 'transparent',
                 borderRight: leftPanelView === key ? '2px solid var(--aurora-accent)' : 'none',
               }}
             >
@@ -198,24 +173,6 @@ export const DesktopLeftSidebar: React.FC<DesktopLeftSidebarProps> = ({
               selectedFolderId={selectedFolderId}
               onSelectFolder={onSelectFolder}
             />
-          ) : leftPanelView === 'tags' ? (
-            <TagPanel
-              diaries={visibleDiaries}
-              selectedTags={selectedTags}
-              onSelectTag={onSelectTag}
-              onClearTags={onClearTags}
-              onRenameTag={onRenameTag}
-              onMergeTags={onMergeTags}
-              onApplyTagMergeSuggestions={onApplyTagMergeSuggestions}
-              onDeleteTag={onDeleteTag}
-            />
-          ) : leftPanelView === 'calendar' ? (
-            <CalendarView
-              diaries={visibleDiaries}
-              onSelectDiary={onSelectDiary}
-              onCreateDiary={onCreateDiary}
-              onChangeDiaryDate={onChangeDiaryDate}
-            />
           ) : (
             <TaskList onModalStateChange={onTaskModalStateChange} />
           )}
@@ -223,11 +180,10 @@ export const DesktopLeftSidebar: React.FC<DesktopLeftSidebarProps> = ({
       )}
 
       <div
-        className={`mt-auto ${isOpen ? 'border-t border-slate-200/40' : ''}`}
-        style={{ backgroundColor: 'rgba(255, 255, 255, 0.5)' }}
+        className={`glimmer-panel-header mt-auto ${isOpen ? 'border-t' : ''}`}
       >
         {isOpen && showCloudStatus && (
-          <div className="px-3 py-2" style={{ borderBottom: '1px solid rgba(200, 210, 220, 0.3)' }}>
+          <div className="px-3 py-2" style={{ borderBottom: '1px solid var(--glimmer-border)' }}>
             <CloudSyncStatus
               userEmail={userEmail}
               onRetry={onRetrySync}
@@ -269,6 +225,16 @@ export const DesktopLeftSidebar: React.FC<DesktopLeftSidebarProps> = ({
               <FileText size={16} />
             </button>
             <button
+              onClick={onToggleTheme}
+              className="p-2 rounded-xl transition-all duration-200 active:scale-95"
+              style={iconButtonStyle}
+              onMouseEnter={handleIconEnter}
+              onMouseLeave={handleIconLeave}
+              title={theme === 'dark' ? t('Switch to light mode') : t('Switch to dark mode')}
+            >
+              {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+            </button>
+            <button
               onClick={onOpenSettings}
               className="p-2 rounded-xl transition-all duration-200 active:scale-95"
               style={iconButtonStyle}
@@ -302,6 +268,16 @@ export const DesktopLeftSidebar: React.FC<DesktopLeftSidebarProps> = ({
               title={t('Diary Template')}
             >
               <FileText size={16} />
+            </button>
+            <button
+              onClick={onToggleTheme}
+              className="p-2 rounded-xl transition-all duration-200 active:scale-95"
+              style={iconButtonStyle}
+              onMouseEnter={handleIconEnter}
+              onMouseLeave={handleIconLeave}
+              title={theme === 'dark' ? t('Switch to light mode') : t('Switch to dark mode')}
+            >
+              {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
             </button>
             <button
               onClick={onOpenSettings}

@@ -72,21 +72,6 @@ export const DiaryList: React.FC<DiaryListProps> = ({
   const [movingDiaryId, setMovingDiaryId] = useState<string | null>(null);
   const [targetFolderId, setTargetFolderId] = useState<string | null>(null);
 
-  const getTagColor = (tag: string) => {
-    const colors = [
-      'bg-blue-100 text-blue-700 border-blue-200',
-      'bg-green-100 text-green-700 border-green-200',
-      'bg-purple-100 text-purple-700 border-purple-200',
-      'bg-pink-100 text-pink-700 border-pink-200',
-      'bg-yellow-100 text-yellow-700 border-yellow-200',
-      'bg-indigo-100 text-indigo-700 border-indigo-200',
-      'bg-red-100 text-red-700 border-red-200',
-      'bg-orange-100 text-orange-700 border-orange-200',
-    ];
-    const index = tag.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-    return colors[index % colors.length];
-  };
-
   const filteredDiaries = diaries.filter((diary) => {
     const isLongTermMaster = isLongTermMasterDiary(diary);
     return (
@@ -176,9 +161,8 @@ export const DiaryList: React.FC<DiaryListProps> = ({
   };
 
   return (
-    <div className="h-full flex flex-col border-r border-slate-200/60" style={{ backgroundColor: 'rgba(255, 255, 255, 0.75)' }}>
-      {/* 头部区域 - 轻量半透明 */}
-      <div className="p-4" style={{ backgroundColor: 'rgba(255, 255, 255, 0.5)', borderBottom: '1px solid rgba(200, 210, 220, 0.4)' }}>
+    <div className="glimmer-panel h-full flex flex-col border-r">
+      <div className="glimmer-panel-header p-4 border-b">
         <div className="flex items-center justify-between mb-4">
           {/* 移动端侧边栏按钮 */}
           <button
@@ -203,7 +187,7 @@ export const DiaryList: React.FC<DiaryListProps> = ({
             {onOpenTemplateDiary && (
               <button
                 onClick={onOpenTemplateDiary}
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200/70 bg-white/70 text-sm font-medium text-primary-600 shadow-sm transition-all duration-200 hover:bg-primary-50 active:scale-95"
+                className="glimmer-card inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border text-sm font-medium shadow-sm transition-all duration-200 active:scale-95"
                 title={t('Diary Template')}
               >
                 <FileText size={16} strokeWidth={1.8} />
@@ -213,8 +197,7 @@ export const DiaryList: React.FC<DiaryListProps> = ({
             {/* 加号按钮 - 弥散光渐变强调色 */}
             <button
               onClick={onCreateDiary}
-              className="p-2.5 text-white rounded-xl shadow-sm hover:shadow-md transition-all duration-200 active:scale-95"
-              style={{ background: 'linear-gradient(135deg, var(--aurora-accent) 0%, var(--aurora-accent-alt) 100%)' }}
+              className="glimmer-accent-button p-2.5 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 active:scale-95"
               title={t('New Diary')}
             >
               <Plus size={18} strokeWidth={2} />
@@ -234,10 +217,8 @@ export const DiaryList: React.FC<DiaryListProps> = ({
             placeholder={t('Search diaries...')}
             value={searchQuery}
             onChange={(e) => onSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 rounded-xl focus:outline-none transition-colors duration-200"
+            className="glimmer-field w-full pl-10 pr-4 py-2.5 rounded-xl focus:outline-none transition-colors duration-200"
             style={{
-              backgroundColor: 'rgba(255, 255, 255, 0.8)',
-              border: '1px solid rgba(255, 255, 255, 0.3)',
               color: 'var(--aurora-primary)'
             }}
           />
@@ -248,10 +229,8 @@ export const DiaryList: React.FC<DiaryListProps> = ({
           <select
             value={sortMode}
             onChange={(e) => handleSortModeChange(e.target.value as typeof sortMode)}
-            className="w-full px-3 py-2.5 rounded-xl text-sm focus:outline-none transition-colors duration-200"
+            className="glimmer-field w-full px-3 py-2.5 rounded-xl text-sm focus:outline-none transition-colors duration-200"
             style={{
-              backgroundColor: 'rgba(255, 255, 255, 0.85)',
-              border: '1px solid rgba(255, 255, 255, 0.3)',
               color: 'var(--aurora-primary)'
             }}
           >
@@ -268,7 +247,7 @@ export const DiaryList: React.FC<DiaryListProps> = ({
       <div className="flex-1 overflow-y-auto p-2">
         {sortedDiaries.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full p-6">
-            <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4" style={{ backgroundColor: 'rgba(241, 245, 249, 0.9)' }}>
+            <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4" style={{ backgroundColor: 'var(--glimmer-surface-muted)' }}>
               <Calendar size={32} strokeWidth={1.5} style={{ color: 'var(--aurora-muted)' }} />
             </div>
             <p className="text-sm text-center" style={{ color: 'var(--aurora-muted)' }}>
@@ -277,8 +256,7 @@ export const DiaryList: React.FC<DiaryListProps> = ({
             {!searchQuery && (
               <button
                 onClick={onCreateDiary}
-                className="mt-4 px-4 py-2 text-sm text-white rounded-xl font-medium shadow-sm hover:shadow-md transition-all duration-200 active:scale-95"
-                style={{ background: 'linear-gradient(135deg, var(--aurora-accent) 0%, var(--aurora-accent-alt) 100%)' }}
+                className="glimmer-accent-button mt-4 px-4 py-2 text-sm rounded-xl font-medium shadow-sm hover:shadow-md transition-all duration-200 active:scale-95"
               >
                 {t('Create first diary')}
               </button>
@@ -296,21 +274,18 @@ export const DiaryList: React.FC<DiaryListProps> = ({
                 currentDiaryId === diary.id
                   ? 'shadow-md'
                   : 'hover:shadow-sm'
-              } ${isLongTermMaster ? 'border-sky-200/80 bg-gradient-to-br from-sky-50/90 via-white/90 to-white/80' : 'border-slate-200/60'}`}
+              } ${isLongTermMaster ? 'glimmer-system-card' : currentDiaryId === diary.id ? 'glimmer-card-active' : 'glimmer-card'}`}
               style={{
-                backgroundColor: isLongTermMaster
-                  ? undefined
-                  : currentDiaryId === diary.id ? 'rgba(14, 165, 233, 0.12)' : 'rgba(255, 255, 255, 0.85)',
-                borderColor: currentDiaryId === diary.id ? 'var(--aurora-accent)' : undefined
+                borderColor: currentDiaryId === diary.id ? 'var(--glimmer-border-strong)' : undefined
               }}
               onMouseEnter={(e) => {
                 if (!isLongTermMaster && currentDiaryId !== diary.id) {
-                  e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.7)';
+                  e.currentTarget.style.backgroundColor = 'var(--glimmer-surface-card-hover)';
                 }
               }}
               onMouseLeave={(e) => {
                 if (!isLongTermMaster && currentDiaryId !== diary.id) {
-                  e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.5)';
+                  e.currentTarget.style.backgroundColor = 'var(--glimmer-surface-card)';
                 }
               }}
               onClick={() => onSelectDiary(diary.id)}
@@ -343,7 +318,7 @@ export const DiaryList: React.FC<DiaryListProps> = ({
                       }}
                       className="p-1.5 rounded-lg transition-all duration-200 active:scale-95"
                       style={{ color: 'var(--aurora-accent)' }}
-                      onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(14, 165, 233, 0.15)'; }}
+                      onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--glimmer-surface-active)'; }}
                       onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
                       title={t('Move to Folder')}
                     >
@@ -365,23 +340,6 @@ export const DiaryList: React.FC<DiaryListProps> = ({
                 <p className="text-sm line-clamp-2 mb-2 leading-relaxed" style={{ color: 'var(--aurora-secondary)' }}>
                   {getPreviewText(diary.content) || t('No content')}
                 </p>
-                {!isLongTermMaster && diary.tags.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5 mb-2">
-                    {diary.tags.slice(0, 3).map(tag => (
-                      <span
-                        key={tag}
-                        className={`inline-block px-2 py-0.5 text-xs font-medium rounded-full border ${getTagColor(tag)}`}
-                      >
-                        {tag}
-                      </span>
-                    ))}
-                    {diary.tags.length > 3 && (
-                      <span className="inline-block px-2 py-0.5 text-xs font-medium rounded-full bg-primary-100 text-primary-600 border border-primary-200">
-                        +{diary.tags.length - 3}
-                      </span>
-                    )}
-                  </div>
-                )}
                 <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--aurora-muted)' }}>
                   <span className="font-medium">{getDiaryWordCount(diary.content)} {t('words')}</span>
                   <span>•</span>
@@ -414,7 +372,7 @@ export const DiaryList: React.FC<DiaryListProps> = ({
         <div className="mb-5">
           <label className="block text-sm font-medium text-primary-700 mb-2">{t('Select destination folder')}</label>
           <select
-            className="w-full px-4 py-2.5 bg-primary-50/80 border border-primary-200 rounded-apple text-primary-900 focus:bg-white focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20 focus:outline-none transition-all duration-200"
+            className="glimmer-field w-full px-4 py-2.5 rounded-apple text-primary-900 focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20 focus:outline-none transition-all duration-200"
             value={targetFolderId ?? ''}
             onChange={(e) => setTargetFolderId(e.target.value || null)}
           >

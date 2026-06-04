@@ -53,8 +53,7 @@ DS_KEY="your_api_key_here" DIARY_TEXT="今天天气很好，心情不错" node s
 ```json
 {
   "summary": "今天心情愉悦...",
-  "suggestions": ["建议1", "建议2"],
-  "tags": ["心情", "天气"]
+  "suggestions": ["建议1", "建议2"]
 }
 ```
 
@@ -68,7 +67,7 @@ npm run dev
 1. 点击右上角的设置图标
 2. 进入 "AI Settings"
 3. 确认 DeepSeek 配置已生效（如果使用环境变量，会显示提示信息）
-4. 使用仍保留的 AI 能力测试配置，例如自动标签或任务生成
+4. 使用仍保留的 AI 能力测试配置，例如任务生成
 
 ## 功能说明
 

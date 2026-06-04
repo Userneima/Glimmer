@@ -345,7 +345,7 @@ export const buildReviewDigest = (
     patterns,
     risks: inRangeInsights.flatMap((insight) => insight.healthSignals).slice(0, 4).map((item) => item.title),
     unresolvedQuestions: inRangeInsights.flatMap((insight) => insight.absenceCandidates).slice(0, 4).map((item) => item.title),
-    suggestedTags: Array.from(new Set(inRangeDiaries.flatMap((diary) => diary.tags))).slice(0, 8),
+    suggestedTags: [],
     createdAt: Date.now(),
     updatedAt: Date.now(),
   };

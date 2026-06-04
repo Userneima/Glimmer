@@ -32,10 +32,9 @@ export const Button: React.FC<ButtonProps> = ({
       active:from-accent-600 active:to-accent-700
     `.replace(/\s+/g, ' ').trim(),
     secondary: `
-      bg-primary-100
+      glimmer-card
       text-primary-900
-      hover:bg-primary-200
-      active:bg-primary-300
+      border
     `.replace(/\s+/g, ' ').trim(),
     ghost: `
       bg-transparent
@@ -52,12 +51,10 @@ export const Button: React.FC<ButtonProps> = ({
       active:from-red-600 active:to-red-700
     `.replace(/\s+/g, ' ').trim(),
     glass: `
-      bg-white/60 backdrop-blur-apple
+      glimmer-card backdrop-blur-apple
       text-primary-900
-      border border-white/30
+      border
       shadow-apple-sm
-      hover:bg-white/80
-      active:bg-white/95
     `.replace(/\s+/g, ' ').trim(),
   };
 

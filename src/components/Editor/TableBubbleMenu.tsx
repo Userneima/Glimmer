@@ -152,7 +152,7 @@ export const TableBubbleMenu: React.FC<TableBubbleMenuProps> = ({ editor }) => {
 
   return (
     <div
-      className="fixed z-50 flex max-w-[calc(100vw-32px)] flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white/95 px-3 py-2 shadow-[0_18px_50px_rgba(15,23,42,0.14)] backdrop-blur-xl"
+      className="glimmer-panel fixed z-50 flex max-w-[calc(100vw-32px)] flex-wrap items-center gap-2 rounded-2xl border px-3 py-2 shadow-[0_18px_50px_rgba(15,23,42,0.14)] backdrop-blur-xl"
       style={{ top: `${position.top}px`, left: `${position.left}px` }}
     >
       <TableMenuSection label={t('Columns')}>

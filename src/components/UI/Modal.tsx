@@ -50,7 +50,7 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, 
       <div 
         className={`
           relative 
-          bg-white/95 backdrop-blur-apple
+          glimmer-panel backdrop-blur-apple
           rounded-apple-xl 
           shadow-apple-elevated
           ${maxWidthClasses[maxWidth]} 
@@ -58,11 +58,11 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, 
           max-h-[85vh] 
           overflow-hidden
           animate-scale-in
-          border border-white/50
+          border
         `}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-primary-100/80">
+        <div className="glimmer-panel-header flex items-center justify-between px-6 py-4 border-b">
           <h2 className="text-lg font-semibold text-primary-900 tracking-tight">{title}</h2>
           <button
             onClick={onClose}

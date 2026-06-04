@@ -31,7 +31,7 @@ export const TableOfContents: React.FC<TableOfContentsProps> = ({ content, heade
       
       // 添加高亮闪烁效果
       targetHeading.style.transition = 'background-color 0.3s ease';
-      targetHeading.style.backgroundColor = 'rgba(0, 122, 255, 0.15)';
+      targetHeading.style.backgroundColor = 'var(--glimmer-surface-active)';
       targetHeading.style.borderRadius = '6px';
       
       setTimeout(() => {
@@ -42,12 +42,12 @@ export const TableOfContents: React.FC<TableOfContentsProps> = ({ content, heade
 
   if (headings.length === 0) {
     return (
-      <div className="h-full flex flex-col overflow-hidden bg-gradient-to-b from-slate-50/80 to-blue-50/40">
-        <div className="px-4 py-3 border-b border-slate-200/60 bg-white/90 flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-slate-700 tracking-tight">{t('Table of Contents')}</h3>
+      <div className="glimmer-toc-panel h-full flex flex-col overflow-hidden">
+        <div className="glimmer-panel-header px-4 py-3 border-b flex items-center justify-between">
+          <h3 className="text-sm font-semibold tracking-tight" style={{ color: 'var(--aurora-primary)' }}>{t('Table of Contents')}</h3>
           {headerAction}
         </div>
-        <div className="flex-1 flex flex-col items-center justify-center text-slate-400 p-4">
+        <div className="flex-1 flex flex-col items-center justify-center p-4" style={{ color: 'var(--aurora-muted)' }}>
           <FileText size={32} className="mb-2 opacity-50" strokeWidth={1.5} />
           <p className="text-sm text-center">{t('No headings in this article')}</p>
         </div>
@@ -58,9 +58,9 @@ export const TableOfContents: React.FC<TableOfContentsProps> = ({ content, heade
   const minLevel = Math.min(...headings.map((h) => h.level));
 
   return (
-    <div className="h-full flex flex-col overflow-hidden bg-gradient-to-b from-slate-50/80 to-blue-50/40">
-      <div className="px-4 py-3 border-b border-slate-200/60 bg-white/90 flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-slate-700 tracking-tight">{t('Table of Contents')}</h3>
+    <div className="glimmer-toc-panel h-full flex flex-col overflow-hidden">
+      <div className="glimmer-panel-header px-4 py-3 border-b flex items-center justify-between">
+        <h3 className="text-sm font-semibold tracking-tight" style={{ color: 'var(--aurora-primary)' }}>{t('Table of Contents')}</h3>
         {headerAction}
       </div>
       <div className="flex-1 overflow-y-auto">
@@ -74,10 +74,10 @@ export const TableOfContents: React.FC<TableOfContentsProps> = ({ content, heade
             >
               <button
                 onClick={(e) => handleHeadingClick(e, index)}
-                className="w-full text-left text-sm text-slate-600 hover:text-blue-600 hover:bg-white/80 rounded-lg px-2 py-1.5 truncate block transition-all duration-200 active:scale-[0.98] hover:shadow-sm"
+                className="glimmer-toc-item w-full text-left text-sm rounded-lg px-2 py-1.5 truncate block transition-all duration-200 active:scale-[0.98] hover:shadow-sm"
                 title={heading.title}
               >
-                <span className="inline-flex items-center justify-center w-5 h-5 text-2xs font-medium text-slate-400 bg-slate-100 rounded mr-1.5">
+                <span className="glimmer-toc-badge inline-flex items-center justify-center w-5 h-5 text-2xs font-medium rounded mr-1.5">
                   H{heading.level}
                 </span>
                 <span className="font-medium">{heading.title}</span>

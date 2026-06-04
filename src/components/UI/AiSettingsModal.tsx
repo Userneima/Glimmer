@@ -52,22 +52,23 @@ export const AiSettingsModal: React.FC<Props> = ({ onClose }) => {
   return (
     <div className="space-y-4">
       <div>
-        <label className="block text-base text-gray-600 mb-1">{t('DeepSeek API Key')}</label>
+        <label className="mb-1.5 block text-sm font-medium text-primary-700">{t('DeepSeek API Key')}</label>
         <input
-          className="w-full border rounded px-2 py-2 text-sm"
+          type="password"
+          className="glimmer-field w-full rounded-xl px-3 py-2.5 text-sm outline-none transition-all duration-200 focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20"
           placeholder={t('Paste your DeepSeek API Key (OpenAI-compatible)')}
           value={dsKey}
           onChange={(e) => setDsKey(e.target.value)}
         />
-        <p className="text-xs text-gray-500 mt-1">
+        <p className="mt-1.5 text-xs leading-5 text-primary-500">
           {user?.id && isConfigured ? t('This key is bound to your internal account and synced through Supabase.') : t('If provided, DeepSeek will be used preferentially for analysis.')}
         </p>
       </div>
 
       <div>
-        <label className="block text-base text-gray-600 mb-1">{t('DeepSeek Base URL')}</label>
+        <label className="mb-1.5 block text-sm font-medium text-primary-700">{t('DeepSeek Base URL')}</label>
         <input
-          className="w-full border rounded px-2 py-2 text-sm"
+          className="glimmer-field w-full rounded-xl px-3 py-2.5 text-sm outline-none transition-all duration-200 focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20"
           placeholder={t('DeepSeek base URL (e.g., https://api.deepseek.com)')}
           value={dsBase}
           onChange={(e) => setDsBase(e.target.value)}
@@ -75,16 +76,20 @@ export const AiSettingsModal: React.FC<Props> = ({ onClose }) => {
       </div>
 
       <div>
-        <label className="block text-base text-gray-600 mb-1">{t('DeepSeek Model')}</label>
-        <select className="w-full border rounded px-2 py-2 text-sm" value={dsModel} onChange={(e) => setDsModel(e.target.value)}>
+        <label className="mb-1.5 block text-sm font-medium text-primary-700">{t('DeepSeek Model')}</label>
+        <select
+          className="glimmer-field w-full rounded-xl px-3 py-2.5 text-sm outline-none transition-all duration-200 focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20"
+          value={dsModel}
+          onChange={(e) => setDsModel(e.target.value)}
+        >
           <option value="deepseek-chat">deepseek-chat (non-reasoning)</option>
           <option value="deepseek-reasoner">deepseek-reasoner (reasoning)</option>
         </select>
       </div>
 
       <div className="flex justify-end gap-2">
-        <button onClick={onClose} className="px-4 py-2 rounded border">{t('Cancel')}</button>
-        <button onClick={() => void save()} disabled={saving} className="px-4 py-2 rounded bg-blue-600 text-white disabled:opacity-50">
+        <button onClick={onClose} className="glimmer-card rounded-xl border px-4 py-2 text-sm font-medium text-primary-700 transition-colors">{t('Cancel')}</button>
+        <button onClick={() => void save()} disabled={saving} className="glimmer-accent-button rounded-xl px-4 py-2 text-sm font-medium shadow-sm disabled:opacity-50">
           {saving ? t('Saving...') : t('Save')}
         </button>
       </div>

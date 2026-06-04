@@ -6,7 +6,6 @@ export type TaskFormValues = {
   taskType: TaskType;
   startDate?: number;
   endDate?: number;
-  tags: string[];
 };
 
 export const formatDateInput = (timestamp: number | null | undefined) => {
@@ -26,7 +25,6 @@ export const taskFormValuesToTaskData = (
   taskType: Task['taskType'];
   startDate?: number | null;
   endDate?: number | null;
-  tags?: string[];
   sourceContext?: Task['sourceContext'];
 } => ({
   notes: values.notes,
@@ -37,5 +35,4 @@ export const taskFormValuesToTaskData = (
   endDate: values.taskType === 'time-range'
     ? values.endDate
     : options.clearDatesForLongTerm ? null : undefined,
-  tags: values.tags,
 });

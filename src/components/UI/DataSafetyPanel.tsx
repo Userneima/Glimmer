@@ -1,12 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, CheckCircle2, Clock3, Database, Download, RefreshCw, RotateCcw, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../../context/useAuth';
+import { formatDateTime } from '../../utils/date';
 import { storage, type Backup } from '../../utils/storage';
 import { syncManager } from '../../utils/syncManager';
 import { syncQueue, type SyncOperation } from '../../utils/syncQueue';
-import { formatDateTime } from '../../utils/date';
 
 type DataSnapshot = ReturnType<typeof storage.getAllData>;
+
+const MAX_VISIBLE_BACKUPS = 4;
 
 const formatBackupTimestamp = (timestamp: number) => {
   const date = new Date(timestamp);
@@ -26,7 +28,6 @@ const getCounts = (data: DataSnapshot) => ({
   diaries: data.diaries.length,
   folders: data.folders.length,
   tasks: data.tasks.length,
-  tags: data.tags.length,
   longTermIdeas: data.longTermIdeas.length,
 });
 
@@ -34,36 +35,33 @@ const getBackupCounts = (backup: Backup) => ({
   diaries: backup.diaries.length,
   folders: backup.folders.length,
   tasks: backup.tasks?.length ?? 0,
-  tags: backup.tags?.length ?? 0,
   longTermIdeas: backup.longTermIdeas?.length ?? 0,
 });
 
-const StatCard: React.FC<{ label: string; value: number | string; muted?: string }> = ({ label, value, muted }) => (
-  <div className="rounded-2xl border border-slate-200/80 bg-white/70 px-4 py-3 shadow-sm backdrop-blur-sm">
-    <div className="text-xs font-medium text-slate-400">{label}</div>
-    <div className="mt-1 text-2xl font-semibold tracking-tight text-slate-900">{value}</div>
-    {muted && <div className="mt-1 text-xs text-slate-500">{muted}</div>}
-  </div>
-);
-
-const Section: React.FC<{ title: string; description?: string; children: React.ReactNode }> = ({
+const DataSection: React.FC<{ title: string; description: string; children: React.ReactNode }> = ({
   title,
   description,
   children,
 }) => (
-  <section className="rounded-3xl border border-slate-200/80 bg-white/60 p-4 shadow-sm backdrop-blur-xl">
-    <div className="mb-4 flex items-start justify-between gap-4">
-      <div>
-        <h3 className="text-sm font-semibold text-slate-800">{title}</h3>
-        {description && <p className="mt-1 text-xs leading-5 text-slate-500">{description}</p>}
-      </div>
+  <section className="border-t pt-5 first:border-t-0 first:pt-0" style={{ borderColor: 'var(--glimmer-border)' }}>
+    <div className="mb-3">
+      <h3 className="text-sm font-semibold text-slate-800">{title}</h3>
+      <p className="mt-1 text-xs leading-5 text-slate-500">{description}</p>
     </div>
     {children}
   </section>
 );
 
-const QueueBadge: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <span className="rounded-full border border-slate-200 bg-white/70 px-2 py-0.5 text-[11px] font-semibold text-slate-600">
+const MetricTile: React.FC<{ label: string; value: number | string; detail?: string }> = ({ label, value, detail }) => (
+  <div className="glimmer-card rounded-2xl border px-4 py-3">
+    <div className="text-xs font-medium text-slate-400">{label}</div>
+    <div className="mt-1 text-2xl font-semibold tracking-tight text-slate-900 tabular-nums">{value}</div>
+    {detail && <div className="mt-1 truncate text-xs text-slate-500">{detail}</div>}
+  </div>
+);
+
+const DataBadge: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <span className="rounded-md px-2 py-1 text-[11px] font-medium text-slate-500" style={{ backgroundColor: 'var(--glimmer-surface-muted)' }}>
     {children}
   </span>
 );
@@ -98,6 +96,8 @@ export const DataSafetyPanel: React.FC = () => {
     () => [...backups].sort((left, right) => right.timestamp - left.timestamp),
     [backups],
   );
+  const visibleBackups = sortedBackups.slice(0, MAX_VISIBLE_BACKUPS);
+  const hiddenBackupCount = Math.max(0, sortedBackups.length - visibleBackups.length);
   const latestBackup = sortedBackups[0] ?? null;
 
   const exportFullData = () => {
@@ -151,103 +151,85 @@ export const DataSafetyPanel: React.FC = () => {
   };
 
   return (
-    <div className="space-y-5">
-      <Section
-        title="安全状态"
-        description="只展示当前账号或本地模式下的本机数据。云端不可用时，本地数据仍然优先保留。"
-      >
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-          <div className="rounded-2xl border border-sky-100 bg-sky-50/70 px-4 py-3 text-sky-900">
-            <div className="flex items-center gap-2 text-sm font-semibold">
-              {hasLocalData ? <CheckCircle2 size={17} /> : <AlertTriangle size={17} />}
-              本地数据
+    <div className="space-y-6">
+      <div className="glimmer-card rounded-2xl border p-4">
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <div>
+            <div className="glimmer-info-strip inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold text-sky-700">
+              {hasLocalData ? <CheckCircle2 size={14} /> : <AlertTriangle size={14} />}
+              {hasLocalData ? '本地数据可用' : '未检测到主要本地数据'}
             </div>
-            <p className="mt-2 text-xs leading-5 text-sky-700">
-              {hasLocalData ? '当前本机有可用数据。' : '当前本机没有检测到主要数据。'}
+            <h3 className="mt-3 text-base font-semibold tracking-tight text-slate-900">数据安全</h3>
+            <p className="mt-1 max-w-[56ch] text-sm leading-6 text-slate-500">
+              这里只处理本机数据、自动快照和当前账号的同步队列。云端不可用时，本地数据仍然优先保留。
             </p>
           </div>
-          <div className="rounded-2xl border border-slate-200 bg-white/70 px-4 py-3">
-            <div className="flex items-center gap-2 text-sm font-semibold text-slate-800">
-              <ShieldCheck size={17} className="text-sky-500" />
+          <div className="glimmer-card rounded-xl border px-3 py-2 md:min-w-[220px]">
+            <div className="flex items-center gap-2 text-xs font-semibold text-slate-500">
+              <ShieldCheck size={14} className="text-sky-500" />
               当前账号
             </div>
-            <p className="mt-2 truncate text-xs leading-5 text-slate-500">
+            <div className="mt-1 truncate text-sm font-medium text-slate-800">
               {user?.email ?? (isConfigured ? '未登录' : '本地模式 / 云端未启用')}
-            </p>
-          </div>
-          <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 px-4 py-3 text-emerald-900">
-            <div className="flex items-center gap-2 text-sm font-semibold">
-              <Database size={17} />
-              云端不可用时
             </div>
-            <p className="mt-2 text-xs leading-5 text-emerald-700">
-              本地数据仍可读写；失败的同步会留在当前账号队列里。
-            </p>
           </div>
         </div>
-      </Section>
+      </div>
 
-      <Section title="本地数据概览">
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-          <StatCard label="日记" value={counts.diaries} />
-          <StatCard label="文件夹" value={counts.folders} />
-          <StatCard label="任务" value={counts.tasks} />
-          <StatCard label="标签" value={counts.tags} />
-          <StatCard label="长期想法" value={counts.longTermIdeas} />
-          <StatCard label="本地快照" value={backups.length} />
+      <DataSection title="本机数据" description="快速确认当前设备上有什么内容，并手动导出完整 JSON 留档。">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+          <MetricTile label="日记" value={counts.diaries} />
+          <MetricTile label="文件夹" value={counts.folders} />
+          <MetricTile label="任务" value={counts.tasks} />
+          <MetricTile label="长期想法" value={counts.longTermIdeas} />
+          <MetricTile label="快照" value={backups.length} />
         </div>
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200/80 bg-white/70 px-4 py-3">
+        <div className="glimmer-card mt-3 flex flex-col gap-3 rounded-2xl border px-4 py-3 md:flex-row md:items-center md:justify-between">
           <div>
             <div className="text-sm font-semibold text-slate-800">完整数据 JSON</div>
-            <p className="mt-1 text-xs text-slate-500">导出当前账号/本地模式下的完整本机数据，可用于手动留档。</p>
+            <p className="mt-1 text-xs leading-5 text-slate-500">包含当前账号或本地模式下的完整本机数据，适合手动备份。</p>
           </div>
           <button
             type="button"
             onClick={exportFullData}
-            className="inline-flex items-center gap-2 rounded-apple-lg bg-sky-500 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-sky-600 active:scale-[0.98]"
+            className="inline-flex items-center justify-center gap-2 rounded-apple-lg bg-sky-500 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-sky-600 active:scale-[0.98]"
           >
             <Download size={16} />
             导出完整数据
           </button>
         </div>
-      </Section>
+      </DataSection>
 
-      <Section
-        title="备份与恢复"
-        description="这里读取的是应用内部 localStorage 快照。恢复是危险操作，执行前会再次确认。"
-      >
+      <DataSection title="自动快照" description="应用内部会保留最近的 localStorage 快照。恢复会覆盖当前本机数据。">
         <div className="mb-3 grid grid-cols-1 gap-3 md:grid-cols-2">
-          <StatCard
+          <MetricTile
             label="最近一次快照"
             value={latestBackup ? formatDateTime(latestBackup.timestamp) : '无'}
-            muted={latestBackup ? '来自 localStorage 自动快照' : '修改数据后会自动产生快照'}
+            detail={latestBackup ? '来自自动快照' : '修改数据后会自动产生快照'}
           />
-          <StatCard label="可恢复备份数" value={backups.length} muted="当前最多保留最近的本地快照" />
+          <MetricTile label="可恢复快照" value={backups.length} detail="只展示最近几份，避免列表过长" />
         </div>
-        <div className="space-y-2">
-          {sortedBackups.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-slate-200 bg-white/60 px-4 py-5 text-center text-sm text-slate-500">
-              暂无可恢复备份。
-            </div>
-          ) : (
-            sortedBackups.map((backup) => {
+
+        {visibleBackups.length === 0 ? (
+          <div className="glimmer-card rounded-2xl border border-dashed px-4 py-5 text-center text-sm text-slate-500">
+            暂无可恢复快照。
+          </div>
+        ) : (
+          <div className="glimmer-card divide-y divide-[var(--glimmer-border)] overflow-hidden rounded-2xl border" style={{ borderColor: 'var(--glimmer-border)' }}>
+            {visibleBackups.map((backup) => {
               const backupCounts = getBackupCounts(backup);
               return (
-                <div
-                  key={backup.timestamp}
-                  className="flex flex-col gap-3 rounded-2xl border border-slate-200/80 bg-white/75 px-4 py-3 shadow-sm md:flex-row md:items-center md:justify-between"
-                >
+                <div key={backup.timestamp} className="flex flex-col gap-3 px-4 py-3 md:flex-row md:items-center md:justify-between">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 text-sm font-semibold text-slate-800">
                       <Clock3 size={15} className="text-slate-400" />
                       {formatDateTime(backup.timestamp)}
                     </div>
                     <div className="mt-2 flex flex-wrap gap-1.5">
-                      <QueueBadge>日记 {backupCounts.diaries}</QueueBadge>
-                      <QueueBadge>文件夹 {backupCounts.folders}</QueueBadge>
-                      <QueueBadge>任务 {backupCounts.tasks}</QueueBadge>
-                      <QueueBadge>标签 {backupCounts.tags}</QueueBadge>
-                      <QueueBadge>长期想法 {backupCounts.longTermIdeas}</QueueBadge>
+                      <DataBadge>日记 {backupCounts.diaries}</DataBadge>
+                      <DataBadge>文件夹 {backupCounts.folders}</DataBadge>
+                      <DataBadge>任务 {backupCounts.tasks}</DataBadge>
+                      <DataBadge>长期想法 {backupCounts.longTermIdeas}</DataBadge>
                     </div>
                   </div>
                   <button
@@ -260,44 +242,46 @@ export const DataSafetyPanel: React.FC = () => {
                   </button>
                 </div>
               );
-            })
-          )}
-        </div>
-      </Section>
+            })}
+            {hiddenBackupCount > 0 && (
+              <div className="px-4 py-2 text-xs text-slate-500" style={{ backgroundColor: 'var(--glimmer-surface-muted)' }}>
+                还有 {hiddenBackupCount} 份更早的快照已收起。
+              </div>
+            )}
+          </div>
+        )}
+      </DataSection>
 
-      <Section
-        title="同步队列"
-        description="只显示当前账号对应的待同步操作；不会重试其它账号的队列。"
-      >
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200/80 bg-white/70 px-4 py-3">
+      <DataSection title="同步队列" description="这里只显示当前账号对应的待同步操作。队列为空时，不需要处理。">
+        <div className="glimmer-card flex flex-col gap-3 rounded-2xl border px-4 py-3 md:flex-row md:items-center md:justify-between">
           <div>
-            <div className="text-sm font-semibold text-slate-800">待同步操作：{queueItems.length}</div>
-            <p className="mt-1 text-xs text-slate-500">
-              {activeUserId ? '当前账号队列' : '本地模式队列'}，云端不可用时会保留在这里等待重试。
+            <div className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+              <Database size={15} className="text-sky-500" />
+              待同步操作：{queueItems.length}
+            </div>
+            <p className="mt-1 text-xs leading-5 text-slate-500">
+              {activeUserId ? '当前账号队列' : '本地模式队列'}，云端恢复后可以手动重试。
             </p>
           </div>
           <button
             type="button"
             onClick={retrySyncQueue}
             disabled={isRetrying || queueItems.length === 0}
-            className="inline-flex items-center gap-2 rounded-apple-lg border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-semibold text-sky-700 transition-colors hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex items-center justify-center gap-2 rounded-apple-lg border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-semibold text-sky-700 transition-colors hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <RefreshCw size={16} className={isRetrying ? 'animate-spin' : ''} />
-            重试当前账号队列
+            重试当前队列
           </button>
         </div>
-        {queueItems.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-slate-200 bg-white/60 px-4 py-5 text-center text-sm text-slate-500">
-            当前没有待同步操作。
-          </div>
-        ) : (
-          <div className="space-y-2">
+
+        {queueItems.length > 0 && (
+          <div className="mt-3 space-y-2">
             {queueItems.map((item) => (
-              <div key={item.id} className="rounded-2xl border border-slate-200/80 bg-white/75 px-4 py-3">
+              <div key={item.id} className="glimmer-card rounded-2xl border px-4 py-3">
                 <div className="flex flex-wrap items-center gap-2">
-                  <QueueBadge>{item.type}</QueueBadge>
-                  <QueueBadge>{item.action}</QueueBadge>
-                  <QueueBadge>retry {item.retryCount}</QueueBadge>
+                  <DataBadge>{item.type}</DataBadge>
+                  <DataBadge>{item.action}</DataBadge>
+                  <DataBadge>retry {item.retryCount}</DataBadge>
                   <span className="text-xs text-slate-400">{formatDateTime(item.timestamp)}</span>
                 </div>
                 {item.lastError && (
@@ -309,7 +293,7 @@ export const DataSafetyPanel: React.FC = () => {
             ))}
           </div>
         )}
-      </Section>
+      </DataSection>
     </div>
   );
 };

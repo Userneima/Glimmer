@@ -19,16 +19,10 @@
 - 桌面左侧栏：`src/components/Layout/DesktopLeftSidebar.tsx`
 - 日记列表：`src/components/Sidebar/DiaryList.tsx`
 - 文件夹：`src/components/Sidebar/FolderTree.tsx`
-- 标签：`src/components/Sidebar/TagPanel.tsx`
-- 日历/回看：`src/components/Sidebar/CalendarView.tsx`
-- 日历主内容：`src/components/Sidebar/CalendarDateCard.tsx`、`src/components/Sidebar/CalendarDayContent.tsx`
-- 月历弹窗：`src/components/Sidebar/CalendarMonthDialog.tsx`
-- 周/月复盘弹窗：`src/components/Sidebar/CalendarReviewDialog.tsx`
 - 任务：`src/components/Sidebar/TaskList.tsx`、`src/hooks/useTasks.ts`
 - 编辑器：`src/components/Editor/Editor.tsx`、`src/components/Editor/EditorToolbar.tsx`
 - 表格交互：`src/components/Editor/TableBubbleMenu.tsx`
 - 回看数据与导出：`src/utils/diaryReview.ts`
-- 自动标签：`src/hooks/useAutoDiaryTags.ts`
 - 本地存储：`src/utils/storage.ts`
 - 云同步：`src/utils/cloud.ts`、`src/utils/syncManager.ts`、`src/utils/syncQueue.ts`
 - 导入导出：`src/components/UI/ImportModal.tsx`、`src/components/UI/ExportModal.tsx`、`src/utils/export.ts`
@@ -39,7 +33,6 @@
 - `src/components/Layout/AppLayout.tsx`：应用总装配，先用 `rg` 定位相关 handler，不要整文件通读。
 - `src/utils/storage.ts`：本地持久化总入口，只读目标数据域相关函数。
 - `src/utils/cloud.ts`：Supabase 同步总入口，只读目标表的 fetch/upsert/delete。
-- `src/components/Sidebar/CalendarView.tsx`：日历状态协调入口；具体 UI 已拆到 `CalendarDateCard`、`CalendarDayContent`、`CalendarMonthDialog`、`CalendarReviewDialog`。
 - `src/hooks/useTasks.ts`：任务业务集中，先搜目标任务类型或操作名。
 
 ## 文档事实源

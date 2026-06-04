@@ -1,5 +1,5 @@
 import React from 'react';
-import { CalendarClock, Check } from 'lucide-react';
+import { Bell, CalendarClock, Check } from 'lucide-react';
 import type { AppleReminder } from '../../types';
 import { formatDate, formatTime } from '../../utils/date';
 import { t } from '../../i18n';
@@ -25,7 +25,7 @@ export const AppleReminderItem: React.FC<AppleReminderItemProps> = ({
 
   return (
     <li
-      className={`rounded-xl border border-sky-100 bg-white/85 ${compact ? 'px-3 py-2' : 'p-3'} shadow-sm`}
+      className={`glimmer-card rounded-xl border ${compact ? 'px-3 py-2' : 'p-3'} shadow-sm`}
     >
       <div className="flex items-start gap-2">
         <button
@@ -48,6 +48,10 @@ export const AppleReminderItem: React.FC<AppleReminderItemProps> = ({
             <p className="mt-1 line-clamp-2 text-xs leading-5 text-primary-500">{reminder.notes}</p>
           )}
           <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-primary-400">
+            <span className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2 py-0.5 text-sky-600">
+              <Bell size={10} />
+              {t('Reminders')}
+            </span>
             <span className="inline-flex items-center gap-1">
               <CalendarClock size={11} />
               {dueText}

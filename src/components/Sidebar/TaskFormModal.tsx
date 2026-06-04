@@ -1,9 +1,8 @@
 import React, { useId, useState } from 'react';
 import { Calendar as CalendarIcon, Clock } from 'lucide-react';
-import type { Tag, TaskType } from '../../types';
+import type { TaskType } from '../../types';
 import { t } from '../../i18n';
 import { Modal } from '../UI/Modal';
-import { TagSelector } from '../UI/TagSelector';
 import type { TaskFormValues } from '../../utils/taskForm';
 
 type TaskFormModalProps = {
@@ -15,9 +14,6 @@ type TaskFormModalProps = {
   initialTaskType?: TaskType;
   initialStartDate?: string;
   initialEndDate?: string;
-  initialTags?: string[];
-  tags?: Tag[];
-  onAddTag?: (name: string, color: string) => Tag;
   onClose: () => void;
   onSubmit: (values: TaskFormValues) => void;
 };
@@ -42,9 +38,6 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
   initialTaskType = 'long-term',
   initialStartDate = '',
   initialEndDate = '',
-  initialTags = [],
-  tags,
-  onAddTag,
   onClose,
   onSubmit,
 }) => {
@@ -54,7 +47,6 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
   const [taskType, setTaskType] = useState<TaskType>(initialTaskType);
   const [startDate, setStartDate] = useState(initialStartDate);
   const [endDate, setEndDate] = useState(initialEndDate);
-  const [selectedTags, setSelectedTags] = useState(initialTags);
 
   const resetForm = () => {
     setTaskTitle(initialTitle);
@@ -62,7 +54,6 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
     setTaskType(initialTaskType);
     setStartDate(initialStartDate);
     setEndDate(initialEndDate);
-    setSelectedTags(initialTags);
   };
 
   const handleClose = () => {
@@ -78,7 +69,6 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
       notes: notes.trim() || undefined,
       taskType,
       ...range,
-      tags: selectedTags,
     });
     resetForm();
   };
@@ -168,24 +158,6 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
                 min={startDate}
               />
             </div>
-          </div>
-        )}
-
-        {tags && onAddTag && (
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              {t('Tags')} <span className="text-gray-400 text-xs">({t('Optional')})</span>
-            </label>
-            <TagSelector
-              tags={tags}
-              selectedTagIds={selectedTags}
-              onTagToggle={(tagId) => {
-                setSelectedTags((prev) => (
-                  prev.includes(tagId) ? prev.filter((id) => id !== tagId) : [...prev, tagId]
-                ));
-              }}
-              onAddTag={onAddTag}
-            />
           </div>
         )}
 

@@ -38,7 +38,6 @@ Glimmer/
 │   │   │   └── EditorToolbar.tsx       # 编辑器工具栏
 │   │   ├── Sidebar/
 │   │   │   ├── FolderTree.tsx          # 文件夹树
-│   │   │   ├── TagPanel.tsx            # 标签面板
 │   │   │   ├── CalendarView.tsx        # 日历视图
 │   │   │   └── DiaryList.tsx           # 日记列表
 │   │   ├── Layout/
@@ -47,7 +46,6 @@ Glimmer/
 │   │       ├── Button.tsx              # 按钮组件
 │   │       ├── Input.tsx               # 输入框组件
 │   │       ├── Modal.tsx               # 模态框组件
-│   │       ├── TagInput.tsx            # 标签输入组件
 │   │       └── ExportModal.tsx         # 导出功能模态框
 │   ├── hooks/
 │   │   ├── useDiaries.ts               # 日记数据管理
@@ -159,7 +157,6 @@ create table if not exists diaries (
   title text not null,
   content text not null,
   folder_id uuid,
-  tags text[],
   created_at bigint not null,
   updated_at bigint not null
 );
@@ -215,14 +212,6 @@ create policy "tasks_owner" on tasks
 - [x] 自动保存
 - [x] 字数统计
 
-### ✅ 标签系统
-- [x] 标签添加/删除
-- [x] 标签筛选（多选）
-- [x] 标签统计
-- [x] 标签重命名
-- [x] 标签合并
-- [x] 标签颜色自定义
-
 ### ✅ 导出功能
 - [x] Markdown导出
 - [x] HTML导出
@@ -232,7 +221,6 @@ create policy "tasks_owner" on tasks
 
 ### ✅ 视图模式
 - [x] 文件夹视图
-- [x] 标签视图
 - [x] 日历视图
 
 ## 🎯 未来可以添加的功能
@@ -300,7 +288,7 @@ console.log(JSON.parse(localStorage.getItem('folders')))
 
 ### src/components/Layout/AppLayout.tsx
 主应用布局，协调所有组件：
-- 管理左侧面板切换（文件夹/标签/日历）
+- 管理左侧面板切换（文件夹/任务）
 - 处理日记选择和编辑
 - 管理导出功能
 
@@ -385,7 +373,6 @@ A: 检查类型定义，确保导入正确
 ## 🎉 项目亮点
 
 - ✨ 完整的富文本编辑功能
-- 🏷️ 强大的标签系统
 - 📅 直观的日历视图
 - 📤 多格式导出（支持中文）
 - 💾 本地存储，隐私安全

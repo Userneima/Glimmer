@@ -13,6 +13,7 @@ import { storage, setCurrentUserId } from '../utils/storage';
 import { cloud } from '../utils/cloud';
 import { allowSelfSignUp, isInternalEmailAllowed } from '../utils/auth';
 import { setSyncQueueUserId } from '../utils/syncQueue';
+import { forgetDesktopAuthTokens, rememberDesktopAuthTokens } from '../utils/desktopStore';
 
 const hasAiSettingsValue = (settings: ReturnType<typeof storage.getAiSettings>) =>
   Boolean(settings.deepseekKey || settings.geminiApiKey || settings.deepseekBaseUrl || settings.deepseekModel);
@@ -54,6 +55,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setError(error.message);
         }
         if (data.session?.user?.id) {
+          void rememberDesktopAuthTokens().catch((err) => {
+            console.warn('Failed to remember desktop auth session', err);
+          });
           storage.copyAnonymousDataToUserIfEmpty(data.session.user.id);
           setCurrentUserId(data.session.user.id);
           setSyncQueueUserId(data.session.user.id);
@@ -78,13 +82,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       };
     }
 
-    const { data: subscription } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    const { data: subscription } = supabase.auth.onAuthStateChange((event, nextSession) => {
       if (!active) return;
       if (nextSession?.user?.id) {
+        void rememberDesktopAuthTokens().catch((err) => {
+          console.warn('Failed to remember desktop auth session', err);
+        });
         storage.copyAnonymousDataToUserIfEmpty(nextSession.user.id);
         setCurrentUserId(nextSession.user.id);
         setSyncQueueUserId(nextSession.user.id);
       } else {
+        if (event === 'SIGNED_OUT') {
+          void forgetDesktopAuthTokens().catch((err) => {
+            console.warn('Failed to clear desktop auth session', err);
+          });
+        }
         setCurrentUserId(null);
         setSyncQueueUserId(null);
       }
@@ -150,6 +162,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setError(error.message);
       throw error;
     }
+    await rememberDesktopAuthTokens();
   }, []);
 
   const signUp = useCallback(async (email: string, password: string) => {
@@ -180,6 +193,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setError(error.message);
       throw error;
     }
+    await rememberDesktopAuthTokens();
   }, []);
 
   const signOut = useCallback(async () => {
@@ -191,6 +205,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setError(error.message);
       throw error;
     }
+    await forgetDesktopAuthTokens();
   }, []);
 
   const value = useMemo<AuthContextValue>(() => ({

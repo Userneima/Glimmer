@@ -18,7 +18,7 @@ export const DEFAULT_EDITOR_HEADING_SETTINGS: EditorHeadingSettings = {
   h6: 0.94,
 };
 
-const HEADING_SIZE_LIMITS: Record<keyof EditorHeadingSettings, { min: number; max: number }> = {
+export const EDITOR_HEADING_SIZE_LIMITS: Record<keyof EditorHeadingSettings, { min: number; max: number }> = {
   h1: { min: 1.35, max: 2.4 },
   h2: { min: 1.15, max: 2 },
   h3: { min: 1, max: 1.7 },
@@ -39,12 +39,12 @@ export const getEditorHeadingSettings = (): EditorHeadingSettings => {
     if (!raw) return DEFAULT_EDITOR_HEADING_SETTINGS;
     const parsed = JSON.parse(raw) as Partial<EditorHeadingSettings>;
     return {
-      h1: clampHeadingSize(parsed.h1, DEFAULT_EDITOR_HEADING_SETTINGS.h1, HEADING_SIZE_LIMITS.h1.min, HEADING_SIZE_LIMITS.h1.max),
-      h2: clampHeadingSize(parsed.h2, DEFAULT_EDITOR_HEADING_SETTINGS.h2, HEADING_SIZE_LIMITS.h2.min, HEADING_SIZE_LIMITS.h2.max),
-      h3: clampHeadingSize(parsed.h3, DEFAULT_EDITOR_HEADING_SETTINGS.h3, HEADING_SIZE_LIMITS.h3.min, HEADING_SIZE_LIMITS.h3.max),
-      h4: clampHeadingSize(parsed.h4, DEFAULT_EDITOR_HEADING_SETTINGS.h4, HEADING_SIZE_LIMITS.h4.min, HEADING_SIZE_LIMITS.h4.max),
-      h5: clampHeadingSize(parsed.h5, DEFAULT_EDITOR_HEADING_SETTINGS.h5, HEADING_SIZE_LIMITS.h5.min, HEADING_SIZE_LIMITS.h5.max),
-      h6: clampHeadingSize(parsed.h6, DEFAULT_EDITOR_HEADING_SETTINGS.h6, HEADING_SIZE_LIMITS.h6.min, HEADING_SIZE_LIMITS.h6.max),
+      h1: clampHeadingSize(parsed.h1, DEFAULT_EDITOR_HEADING_SETTINGS.h1, EDITOR_HEADING_SIZE_LIMITS.h1.min, EDITOR_HEADING_SIZE_LIMITS.h1.max),
+      h2: clampHeadingSize(parsed.h2, DEFAULT_EDITOR_HEADING_SETTINGS.h2, EDITOR_HEADING_SIZE_LIMITS.h2.min, EDITOR_HEADING_SIZE_LIMITS.h2.max),
+      h3: clampHeadingSize(parsed.h3, DEFAULT_EDITOR_HEADING_SETTINGS.h3, EDITOR_HEADING_SIZE_LIMITS.h3.min, EDITOR_HEADING_SIZE_LIMITS.h3.max),
+      h4: clampHeadingSize(parsed.h4, DEFAULT_EDITOR_HEADING_SETTINGS.h4, EDITOR_HEADING_SIZE_LIMITS.h4.min, EDITOR_HEADING_SIZE_LIMITS.h4.max),
+      h5: clampHeadingSize(parsed.h5, DEFAULT_EDITOR_HEADING_SETTINGS.h5, EDITOR_HEADING_SIZE_LIMITS.h5.min, EDITOR_HEADING_SIZE_LIMITS.h5.max),
+      h6: clampHeadingSize(parsed.h6, DEFAULT_EDITOR_HEADING_SETTINGS.h6, EDITOR_HEADING_SIZE_LIMITS.h6.min, EDITOR_HEADING_SIZE_LIMITS.h6.max),
     };
   } catch (err) {
     console.warn('Failed to read editor heading settings', err);
@@ -64,12 +64,12 @@ export const applyEditorHeadingSettings = (settings = getEditorHeadingSettings()
 
 export const saveEditorHeadingSettings = (settings: EditorHeadingSettings) => {
   const normalized = {
-    h1: clampHeadingSize(settings.h1, DEFAULT_EDITOR_HEADING_SETTINGS.h1, HEADING_SIZE_LIMITS.h1.min, HEADING_SIZE_LIMITS.h1.max),
-    h2: clampHeadingSize(settings.h2, DEFAULT_EDITOR_HEADING_SETTINGS.h2, HEADING_SIZE_LIMITS.h2.min, HEADING_SIZE_LIMITS.h2.max),
-    h3: clampHeadingSize(settings.h3, DEFAULT_EDITOR_HEADING_SETTINGS.h3, HEADING_SIZE_LIMITS.h3.min, HEADING_SIZE_LIMITS.h3.max),
-    h4: clampHeadingSize(settings.h4, DEFAULT_EDITOR_HEADING_SETTINGS.h4, HEADING_SIZE_LIMITS.h4.min, HEADING_SIZE_LIMITS.h4.max),
-    h5: clampHeadingSize(settings.h5, DEFAULT_EDITOR_HEADING_SETTINGS.h5, HEADING_SIZE_LIMITS.h5.min, HEADING_SIZE_LIMITS.h5.max),
-    h6: clampHeadingSize(settings.h6, DEFAULT_EDITOR_HEADING_SETTINGS.h6, HEADING_SIZE_LIMITS.h6.min, HEADING_SIZE_LIMITS.h6.max),
+    h1: clampHeadingSize(settings.h1, DEFAULT_EDITOR_HEADING_SETTINGS.h1, EDITOR_HEADING_SIZE_LIMITS.h1.min, EDITOR_HEADING_SIZE_LIMITS.h1.max),
+    h2: clampHeadingSize(settings.h2, DEFAULT_EDITOR_HEADING_SETTINGS.h2, EDITOR_HEADING_SIZE_LIMITS.h2.min, EDITOR_HEADING_SIZE_LIMITS.h2.max),
+    h3: clampHeadingSize(settings.h3, DEFAULT_EDITOR_HEADING_SETTINGS.h3, EDITOR_HEADING_SIZE_LIMITS.h3.min, EDITOR_HEADING_SIZE_LIMITS.h3.max),
+    h4: clampHeadingSize(settings.h4, DEFAULT_EDITOR_HEADING_SETTINGS.h4, EDITOR_HEADING_SIZE_LIMITS.h4.min, EDITOR_HEADING_SIZE_LIMITS.h4.max),
+    h5: clampHeadingSize(settings.h5, DEFAULT_EDITOR_HEADING_SETTINGS.h5, EDITOR_HEADING_SIZE_LIMITS.h5.min, EDITOR_HEADING_SIZE_LIMITS.h5.max),
+    h6: clampHeadingSize(settings.h6, DEFAULT_EDITOR_HEADING_SETTINGS.h6, EDITOR_HEADING_SIZE_LIMITS.h6.min, EDITOR_HEADING_SIZE_LIMITS.h6.max),
   };
   localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
   applyEditorHeadingSettings(normalized);

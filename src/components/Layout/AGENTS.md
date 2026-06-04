@@ -5,12 +5,12 @@
 ## 接手入口
 
 - `AppLayout.tsx` 是应用总装配，只负责串联 hook、全局面板、跨区域 handler。
-- `DesktopLeftSidebar.tsx` 负责桌面左侧栏的结构、导航与任务/日历/标签等入口布局。
+- `DesktopLeftSidebar.tsx` 负责桌面左侧栏的结构、导航与任务等入口布局。
 - 新增大块 UI 时优先拆成同目录组件，不要继续扩大 `AppLayout.tsx`。
 
 ## 边界
 
-- 不要把编辑器细节、日历细节、任务详情 UI 直接写回 `AppLayout.tsx`。
+- 不要把编辑器细节、任务详情 UI 直接写回 `AppLayout.tsx`。
 - 系统日记相关判断必须复用 `diarySystem` 工具，不要用标题字符串猜测。
 - `LONG_TERM_MASTER_ID`、`TEMPLATE_DIARY_ID` 不能随意改。
 - 桌面与移动布局可以共享状态，但不要为了一个端的样式破坏另一个端的主流程。

@@ -47,6 +47,10 @@ export default {
       },
       fontFamily: {
         sans: [
+          'Glimmer PuHuiTi',
+          'Alibaba PuHuiTi 3.0',
+          'Alibaba PuHuiTi 3',
+          'AlibabaPuHuiTi_3_55_Regular',
           'PingFang SC',
           '-apple-system',
           'BlinkMacSystemFont',

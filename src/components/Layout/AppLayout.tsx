@@ -1,23 +1,20 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { Analytics } from "@vercel/analytics/react";
 import { useDiaries } from '../../hooks/useDiaries';
-import { useAutoDiaryTags } from '../../hooks/useAutoDiaryTags';
-import { useDiaryTagActions } from '../../hooks/useDiaryTagActions';
 import { useFolders } from '../../hooks/useFolders';
 import { useLocalBackup } from '../../hooks/useLocalBackup';
 import { FolderTree } from '../Sidebar/FolderTree';
-import { TagPanel } from '../Sidebar/TagPanel';
-import { CalendarView } from '../Sidebar/CalendarView';
 import { DiaryList } from '../Sidebar/DiaryList';
 import { Editor } from '../Editor/Editor';
 import { DiaryHeader } from '../Editor/DiaryHeader';
 import { TableOfContents } from '../Editor/TableOfContents';
+import { TaskCarryoverPrompt } from '../Editor/TaskCarryoverPrompt';
 import { ResizablePanel } from '../UI/ResizablePanel';
 import { ExportModal } from '../UI/ExportModal';
 import { ImportModal } from '../UI/ImportModal';
 import { SettingsModal } from '../UI/SettingsModal';
 import { DesktopUpdateNotice } from '../UI/DesktopUpdateNotice';
-import { BookOpen, Settings, Lock, LockOpen, List, FileText, Menu, X, ChevronLeft, Upload, Download } from 'lucide-react';
+import { BookOpen, Settings, Lock, LockOpen, List, FileText, Menu, X, ChevronLeft, Upload, Download, Moon, Sun } from 'lucide-react';
 import { TaskList } from '../Sidebar/TaskList';
 import { ToastHost } from '../UI/ToastHost';
 import { getDiaryWordCount } from '../../utils/text';
@@ -28,16 +25,26 @@ import { syncManager } from '../../utils/syncManager';
 import { ReturnToLongTermIdeasPanel } from '../LongTermIdea/ReturnToLongTermIdeasPanel';
 import { LongTermIdeasDrawer } from '../LongTermIdea/LongTermIdeasDrawer';
 import { TEMPLATE_DIARY_ID } from '../../types';
-import { normalizeDiaryTags } from '../../utils/diaryTags';
 import { preloadAppleReminders } from '../../hooks/useAppleReminders';
 import { applyEditorHeadingSettings } from '../../utils/editorHeadingSettings';
 import { isLongTermMasterDiary, isSystemDiary } from '../../utils/diarySystem';
+import {
+  dismissTaskCarryover,
+  getTaskCarryoverSuggestion,
+  insertCarryoverTasksIntoContent,
+  markCarryoverTasksAsCarried,
+} from '../../utils/diaryTaskCarryover';
 import { DesktopLeftSidebar, type LeftPanelView } from './DesktopLeftSidebar';
 import { useReviewDataSync } from '../../hooks/useReviewDataSync';
 
 import { t } from '../../i18n';
 
-export const AppLayout: React.FC = () => {
+type AppLayoutProps = {
+  theme: 'light' | 'dark';
+  onToggleTheme: () => void;
+};
+
+export const AppLayout: React.FC<AppLayoutProps> = ({ theme, onToggleTheme }) => {
   const { user, signOut, isConfigured } = useAuth();
   const activeUserId = user?.id ?? null;
   const {
@@ -50,14 +57,13 @@ export const AppLayout: React.FC = () => {
     updateDiary,
     deleteDiary,
     moveDiary,
-    batchUpdateDiaries,
     setCurrentDiaryId,
     searchDiaries,
     importDiaries,
+    pullDiariesFromCloud,
   } = useDiaries();
 
   const { folders, createFolder, updateFolder, deleteFolder, importFolders } = useFolders();
-  useAutoDiaryTags(allDiaries, batchUpdateDiaries);
   useReviewDataSync(activeUserId, isConfigured);
 
   useEffect(() => {
@@ -84,7 +90,6 @@ export const AppLayout: React.FC = () => {
     // Initial value will be updated when folders are loaded
     return null;
   });
-  const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [exportModalInitialType, setExportModalInitialType] = useState<'current' | 'all'>('all');
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
@@ -106,6 +111,7 @@ export const AppLayout: React.FC = () => {
   });
   const [isTocHovering, setIsTocHovering] = useState(false);
   const [hasTaskListModalOpen, setHasTaskListModalOpen] = useState(false);
+  const [, forceCarryoverRefresh] = useState(0);
   const { runMajorLocalBackup, scheduleMajorLocalBackup } = useLocalBackup(activeUserId);
   
   // Long-term idea navigation
@@ -143,20 +149,6 @@ export const AppLayout: React.FC = () => {
 
     return () => window.clearTimeout(timer);
   }, [folders, latestFolderId]);
-
-  const {
-    handleSelectTag,
-    handleClearTags,
-    handleRenameTag,
-    handleMergeTags,
-    handleApplyTagMergeSuggestions,
-    handleDeleteTag,
-  } = useDiaryTagActions({
-    diaries,
-    setSelectedTags,
-    updateDiary,
-    onTagsChanged: scheduleMajorLocalBackup,
-  });
 
   // 移动端相关状态
   const [isMobile, setIsMobile] = useState(false);
@@ -226,8 +218,8 @@ export const AppLayout: React.FC = () => {
       if (!success && error) {
         showToast(error);
       }
-    });
-  }, []);
+    }).then(() => pullDiariesFromCloud({ force: true }));
+  }, [pullDiariesFromCloud]);
 
   const handleTitleChange = useCallback(
     (newTitle: string) => {
@@ -252,10 +244,6 @@ export const AppLayout: React.FC = () => {
     createDiary(selectedFolderId);
   };
 
-  const handleCreateDiaryForDate = (date: Date) => {
-    return createDiary(selectedFolderId, { createdAt: date.getTime() });
-  };
-
   const handleOpenTemplateDiary = useCallback(() => {
     setCurrentDiaryId(TEMPLATE_DIARY_ID);
     setSelectedFolderId(null);
@@ -263,12 +251,6 @@ export const AppLayout: React.FC = () => {
       setCurrentView('editor');
     }
   }, [isMobile, setCurrentDiaryId]);
-
-  const handleChangeDiaryDate = (id: string, date: Date) => {
-    const target = allDiaries.find((diary) => diary.id === id);
-    if (target && isSystemDiary(target)) return;
-    updateDiary(id, { createdAt: date.getTime() });
-  };
 
   const canMoveDiaryToFolder = useCallback((id: string) => {
     const target = allDiaries.find((diary) => diary.id === id);
@@ -289,21 +271,42 @@ export const AppLayout: React.FC = () => {
     () => diaries.filter((diary) => !diary.isTemplateDiary),
     [diaries]
   );
-  const ordinaryDiaries = useMemo(
-    () => diaries.filter((diary) => !isSystemDiary(diary)),
-    [diaries]
-  );
-
-  // Filter diaries by selected tags
-  const filteredDiaries = selectedTags.length > 0
-    ? visibleDiaries.filter(diary => {
-        const diaryTags = normalizeDiaryTags(diary.tags);
-        return selectedTags.every(tag => diaryTags.includes(tag));
-      })
-    : visibleDiaries;
 
   const diaryContent = currentDiary?.content ?? '';
   const wordCount = getDiaryWordCount(diaryContent);
+  const taskCarryoverSuggestion = getTaskCarryoverSuggestion(allDiaries, currentDiary);
+
+  const handleAcceptTaskCarryover = useCallback(() => {
+    if (!currentDiary || !taskCarryoverSuggestion) return;
+    const nextContent = insertCarryoverTasksIntoContent(currentDiary.content, taskCarryoverSuggestion.tasks);
+    const nextSourceContent = markCarryoverTasksAsCarried(
+      taskCarryoverSuggestion.sourceDiary.content,
+      taskCarryoverSuggestion.tasks,
+      currentDiary.id,
+    );
+    updateDiary(currentDiary.id, { content: nextContent });
+    if (nextSourceContent !== taskCarryoverSuggestion.sourceDiary.content) {
+      updateDiary(taskCarryoverSuggestion.sourceDiary.id, { content: nextSourceContent });
+    }
+    dismissTaskCarryover(taskCarryoverSuggestion.signature);
+    forceCarryoverRefresh((value) => value + 1);
+    scheduleMajorLocalBackup(500);
+  }, [currentDiary, scheduleMajorLocalBackup, taskCarryoverSuggestion, updateDiary]);
+
+  const handleDismissTaskCarryover = useCallback(() => {
+    if (!taskCarryoverSuggestion) return;
+    dismissTaskCarryover(taskCarryoverSuggestion.signature);
+    forceCarryoverRefresh((value) => value + 1);
+  }, [taskCarryoverSuggestion]);
+
+  const handleOpenTaskCarryoverSource = useCallback(() => {
+    if (!taskCarryoverSuggestion) return;
+    handleSelectDiary(taskCarryoverSuggestion.sourceDiary.id);
+    setSelectedFolderId(null);
+    if (isMobile) {
+      setCurrentView('editor');
+    }
+  }, [handleSelectDiary, isMobile, taskCarryoverSuggestion]);
 
   const handleSwitchAccount = async () => {
     try {
@@ -337,9 +340,7 @@ export const AppLayout: React.FC = () => {
             hasTaskListModalOpen={hasTaskListModalOpen}
             leftPanelView={leftPanelView}
             folders={folders}
-            visibleDiaries={ordinaryDiaries}
             selectedFolderId={selectedFolderId}
-            selectedTags={selectedTags}
             showCloudStatus={isConfigured && Boolean(user)}
             userEmail={user?.email ?? null}
             onExpandChange={setIsLeftSidebarExpanded}
@@ -351,15 +352,6 @@ export const AppLayout: React.FC = () => {
             onMoveDiary={moveDiary}
             canMoveDiary={canMoveDiaryToFolder}
             onSelectFolder={setSelectedFolderId}
-            onSelectTag={handleSelectTag}
-            onClearTags={handleClearTags}
-            onRenameTag={handleRenameTag}
-            onMergeTags={handleMergeTags}
-            onApplyTagMergeSuggestions={handleApplyTagMergeSuggestions}
-            onDeleteTag={handleDeleteTag}
-            onSelectDiary={handleSelectDiary}
-            onCreateDiary={handleCreateDiaryForDate}
-            onChangeDiaryDate={handleChangeDiaryDate}
             onTaskModalStateChange={setHasTaskListModalOpen}
             onRetrySync={handleRetrySync}
             onSwitchAccount={handleSwitchAccount}
@@ -367,12 +359,14 @@ export const AppLayout: React.FC = () => {
             onOpenLongTermIdeas={() => setIsLongTermIdeasOpen(true)}
             onOpenTemplateDiary={handleOpenTemplateDiary}
             onOpenSettings={() => setIsSettingsOpen(true)}
+            theme={theme}
+            onToggleTheme={onToggleTheme}
           />
 
           {/* 中间日记列表 - 毛玻璃材质 */}
           <div className="w-80 flex-shrink-0">
             <DiaryList
-                  diaries={filteredDiaries}
+              diaries={visibleDiaries}
               currentDiaryId={currentDiaryId}
               onSelectDiary={handleSelectDiary}
               onCreateDiary={handleCreateDiary}
@@ -387,7 +381,7 @@ export const AppLayout: React.FC = () => {
           </div>
 
           {/* 右侧编辑器区域 - 毛玻璃材质 */}
-          <div className="flex-1 flex min-w-0 border-l border-slate-200/60" style={{ backgroundColor: 'rgba(255, 255, 255, 0.75)' }}>
+          <div className="glimmer-panel flex-1 flex min-w-0 border-l">
             <div className="flex min-w-0 flex-1 flex-col">
             {currentDiary ? (
               <>
@@ -395,103 +389,110 @@ export const AppLayout: React.FC = () => {
                   diary={currentDiary}
                   wordCount={wordCount}
                   onTitleChange={handleTitleChange}
-                  onTagsChange={(tags) => {
-                    if (currentDiary && isLongTermMasterDiary(currentDiary)) return;
-                    updateDiary(currentDiaryId!, { tags: normalizeDiaryTags(tags) });
-                  }}
                   onExport={() => openExportModal('current')}
                 />
-                <div className="flex-1 overflow-hidden flex flex-col">
+                <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
                   {navigatingFromIdea && (
                     <ReturnToLongTermIdeasPanel onReturn={handleReturnToLongTermIdeas} />
                   )}
-                  <Editor
-                    content={diaryContent}
-                    onChange={handleContentChange}
-                    editable={true}
-                    highlightRange={highlightRange}
-                    contentRightPanel={
-                      showTableOfContents ? (
-                        isTocPinned ? (
-                          <ResizablePanel
-                            isOpen={true}
-                            side="right"
-                            minWidth={200}
-                            maxWidth={600}
-                            defaultWidth={tocPanelWidth}
-                            persistKey="toc-panel-width"
-                            onWidthChange={(value) => setTocPanelWidth(clampTocWidth(value))}
-                            className="border-l border-slate-200/60 bg-gradient-to-l from-slate-50/90 to-white/80"
-                          >
-                            <TableOfContents
-                              content={diaryContent}
-                              headerAction={
-                                <div className="flex items-center gap-1">
-                                  <button
-                                    className="p-1.5 rounded-apple-sm hover:bg-primary-100 text-primary-500 hover:text-primary-900 transition-all duration-200 active:scale-95"
-                                    title="文档"
-                                    aria-label="文档"
-                                  >
-                                    <FileText size={14} strokeWidth={1.75} />
-                                  </button>
-                                  <button
-                                    onClick={() => setIsTocPinned(false)}
-                                    className="p-1.5 rounded-apple-sm hover:bg-primary-100 text-primary-500 hover:text-primary-900 transition-all duration-200 active:scale-95"
-                                    title={t('Unpin')}
-                                    aria-label={t('Unpin')}
-                                  >
-                                    <Lock size={14} strokeWidth={1.75} />
-                                  </button>
-                                </div>
-                              }
-                            />
-                          </ResizablePanel>
-                        ) : (
-                          <div
-                            className="group h-full flex-shrink-0 relative border-l border-slate-200/60 bg-gradient-to-l from-slate-100/60 to-blue-50/40 transition-all duration-300 ease-apple overflow-hidden"
-                            style={{ width: isTocHovering ? `${tocPanelWidth}px` : '40px' }}
-                            onMouseEnter={() => setIsTocHovering(true)}
-                            onMouseLeave={() => setIsTocHovering(false)}
-                          >
-                            {/* Collapsed state: show icon */}
-                            <div className="absolute inset-0 flex items-center justify-center opacity-100 group-hover:opacity-0 pointer-events-none transition-opacity">
-                              <List size={16} className="text-primary-400" strokeWidth={1.75} />
-                            </div>
-
-                            {/* Expanded state on hover */}
-                            <div className="h-full opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                  {taskCarryoverSuggestion ? (
+                    <TaskCarryoverPrompt
+                      suggestion={taskCarryoverSuggestion}
+                      targetDate={currentDiary.createdAt}
+                      onAccept={handleAcceptTaskCarryover}
+                      onDismiss={handleDismissTaskCarryover}
+                      onOpenSource={handleOpenTaskCarryoverSource}
+                    />
+                  ) : null}
+                  <div className="min-h-0 flex-1">
+                    <Editor
+                      content={diaryContent}
+                      onChange={handleContentChange}
+                      editable={true}
+                      highlightRange={highlightRange}
+                      contentRightPanel={
+                        showTableOfContents ? (
+                          isTocPinned ? (
+                            <ResizablePanel
+                              isOpen={true}
+                              side="right"
+                              minWidth={200}
+                              maxWidth={600}
+                              defaultWidth={tocPanelWidth}
+                              persistKey="toc-panel-width"
+                              onWidthChange={(value) => setTocPanelWidth(clampTocWidth(value))}
+                              className="glimmer-panel border-l"
+                            >
                               <TableOfContents
                                 content={diaryContent}
                                 headerAction={
-                                <div className="flex items-center gap-1">
-                                  <button
-                                    className="p-1.5 rounded-apple-sm hover:bg-primary-100 text-primary-500 hover:text-primary-900 transition-all duration-200 active:scale-95"
-                                    title="文档"
-                                    aria-label="文档"
-                                  >
-                                    <FileText size={14} strokeWidth={1.75} />
-                                  </button>
-                                  <button
-                                    onClick={() => setIsTocPinned(true)}
-                                    className="p-1.5 rounded-apple-sm hover:bg-primary-100 text-primary-500 hover:text-primary-900 transition-all duration-200 active:scale-95"
-                                    title={t('Pin')}
-                                    aria-label={t('Pin')}
-                                  >
-                                    <LockOpen size={14} strokeWidth={1.75} />
-                                  </button>
-                                </div>
-                              }
+                                  <div className="flex items-center gap-1">
+                                    <button
+                                      className="p-1.5 rounded-apple-sm hover:bg-primary-100 text-primary-500 hover:text-primary-900 transition-all duration-200 active:scale-95"
+                                      title="文档"
+                                      aria-label="文档"
+                                    >
+                                      <FileText size={14} strokeWidth={1.75} />
+                                    </button>
+                                    <button
+                                      onClick={() => setIsTocPinned(false)}
+                                      className="p-1.5 rounded-apple-sm hover:bg-primary-100 text-primary-500 hover:text-primary-900 transition-all duration-200 active:scale-95"
+                                      title={t('Unpin')}
+                                      aria-label={t('Unpin')}
+                                    >
+                                      <Lock size={14} strokeWidth={1.75} />
+                                    </button>
+                                  </div>
+                                }
                               />
+                            </ResizablePanel>
+                          ) : (
+                            <div
+                              className="glimmer-panel group h-full flex-shrink-0 relative border-l transition-all duration-300 ease-apple overflow-hidden"
+                              style={{ width: isTocHovering ? `${tocPanelWidth}px` : '40px' }}
+                              onMouseEnter={() => setIsTocHovering(true)}
+                              onMouseLeave={() => setIsTocHovering(false)}
+                            >
+                              {/* Collapsed state: show icon */}
+                              <div className="absolute inset-0 flex items-center justify-center opacity-100 group-hover:opacity-0 pointer-events-none transition-opacity">
+                                <List size={16} className="text-primary-400" strokeWidth={1.75} />
+                              </div>
+
+                              {/* Expanded state on hover */}
+                              <div className="h-full opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                                <TableOfContents
+                                  content={diaryContent}
+                                  headerAction={
+                                  <div className="flex items-center gap-1">
+                                    <button
+                                      className="p-1.5 rounded-apple-sm hover:bg-primary-100 text-primary-500 hover:text-primary-900 transition-all duration-200 active:scale-95"
+                                      title="文档"
+                                      aria-label="文档"
+                                    >
+                                      <FileText size={14} strokeWidth={1.75} />
+                                    </button>
+                                    <button
+                                      onClick={() => setIsTocPinned(true)}
+                                      className="p-1.5 rounded-apple-sm hover:bg-primary-100 text-primary-500 hover:text-primary-900 transition-all duration-200 active:scale-95"
+                                      title={t('Pin')}
+                                      aria-label={t('Pin')}
+                                    >
+                                      <LockOpen size={14} strokeWidth={1.75} />
+                                    </button>
+                                  </div>
+                                }
+                                />
+                              </div>
                             </div>
-                          </div>
-                        )
-                      ) : null
-                    }
-                  />
+                          )
+                        ) : null
+                      }
+                    />
+                  </div>
                 </div>
               </>
             ) : (
-              <div className="flex-1 flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/20">
+              <div className="glimmer-empty-view flex-1 flex items-center justify-center">
                 <div className="text-center">
                   <div className="inline-flex items-center justify-center w-20 h-20 rounded-apple-xl bg-primary-100 mb-6">
                     <BookOpen size={40} className="text-primary-400" strokeWidth={1.25} />
@@ -532,7 +533,7 @@ export const AppLayout: React.FC = () => {
       {isMobile && (
         <div className="h-full flex flex-col">
           {/* 移动端导航栏 */}
-          <div className="sticky top-0 z-50 bg-white/90 backdrop-blur-sm border-b border-slate-200 px-4 py-3 flex items-center justify-between">
+          <div className="glimmer-panel-header sticky top-0 z-50 backdrop-blur-sm border-b px-4 py-3 flex items-center justify-between">
             {currentView === 'editor' ? (
               <button
                 onClick={() => setCurrentView('diaryList')}
@@ -569,6 +570,14 @@ export const AppLayout: React.FC = () => {
                 <FileText size={20} />
               </button>
               <button
+                onClick={onToggleTheme}
+                className="p-2 rounded-lg text-primary-600 hover:bg-primary-50 transition-colors"
+                title={theme === 'dark' ? t('Switch to light mode') : t('Switch to dark mode')}
+                aria-label={theme === 'dark' ? t('Switch to light mode') : t('Switch to dark mode')}
+              >
+                {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+              </button>
+              <button
                 onClick={() => setIsSettingsOpen(true)}
                 className="p-2 rounded-lg text-primary-600 hover:bg-primary-50 transition-colors"
                 title={t('Settings')}
@@ -582,7 +591,7 @@ export const AppLayout: React.FC = () => {
           {/* 主内容区 */}
           <div className="flex-1 overflow-auto">
             {currentView === 'editor' ? (
-              <div className="h-full flex flex-col" style={{ backgroundColor: 'rgba(255, 255, 255, 0.75)' }}>
+              <div className="glimmer-panel h-full flex flex-col">
                 {currentDiary ? (
                   <>
                     <DiaryHeader
@@ -590,25 +599,32 @@ export const AppLayout: React.FC = () => {
                       wordCount={wordCount}
                       isMobile
                       onTitleChange={handleTitleChange}
-                      onTagsChange={(tags) => {
-                        if (currentDiary && isLongTermMasterDiary(currentDiary)) return;
-                        updateDiary(currentDiaryId!, { tags: normalizeDiaryTags(tags) });
-                      }}
                       onExport={() => openExportModal('current')}
                     />
                     
                     {/* 编辑器内容 */}
-                    <div className="flex-1 overflow-auto">
-                      <Editor
-                        content={diaryContent}
-                        onChange={handleContentChange}
-                        editable={true}
-                      />
+                    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                      {taskCarryoverSuggestion ? (
+                        <TaskCarryoverPrompt
+                          suggestion={taskCarryoverSuggestion}
+                          targetDate={currentDiary.createdAt}
+                          onAccept={handleAcceptTaskCarryover}
+                          onDismiss={handleDismissTaskCarryover}
+                          onOpenSource={handleOpenTaskCarryoverSource}
+                        />
+                      ) : null}
+                      <div className="min-h-0 flex-1">
+                        <Editor
+                          content={diaryContent}
+                          onChange={handleContentChange}
+                          editable={true}
+                        />
+                      </div>
                     </div>
                     
                     {/* 移动端目录面板 */}
                     {isMobile && showTableOfContents && (
-                      <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-sm border-t border-slate-200 shadow-lg z-40">
+                      <div className="glimmer-panel fixed bottom-0 left-0 right-0 backdrop-blur-sm border-t shadow-lg z-40">
                         <div className="max-h-64 overflow-auto">
                           <TableOfContents 
                     content={diaryContent} 
@@ -627,7 +643,7 @@ export const AppLayout: React.FC = () => {
                     )}
                   </>
                 ) : (
-                  <div className="flex-1 flex flex-col items-center justify-center p-6 bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/20">
+                  <div className="glimmer-empty-view flex-1 flex flex-col items-center justify-center p-6">
                     <div className="inline-flex items-center justify-center w-16 h-16 rounded-apple-lg bg-primary-100 mb-4">
                       <BookOpen size={32} className="text-primary-400" strokeWidth={1.25} />
                     </div>
@@ -661,7 +677,7 @@ export const AppLayout: React.FC = () => {
                 {/* 日记列表内容 */}
                 <div className="flex-1 overflow-auto">
                   <DiaryList
-                    diaries={filteredDiaries}
+                    diaries={visibleDiaries}
                     currentDiaryId={currentDiaryId}
                     onSelectDiary={(id) => {
                       handleSelectDiary(id);
@@ -693,9 +709,9 @@ export const AppLayout: React.FC = () => {
           />
           
           {/* 侧边栏内容 */}
-          <div className="absolute left-0 top-0 bottom-0 w-64 bg-white/95 backdrop-blur-sm border-r border-slate-200 flex flex-col">
+          <div className="glimmer-panel absolute left-0 top-0 bottom-0 w-64 backdrop-blur-sm border-r flex flex-col">
             {/* 侧边栏头部 */}
-            <div className="p-4 border-b border-slate-200 flex items-center justify-between">
+            <div className="glimmer-panel-header p-4 border-b flex items-center justify-between">
               <h3 className="font-semibold text-primary-900">{t('Menu')}</h3>
               <button
                 onClick={() => setIsSidebarOpen(false)}
@@ -707,7 +723,7 @@ export const AppLayout: React.FC = () => {
             </div>
             
             {/* 侧边栏选项卡 */}
-            <div className="flex border-b border-slate-200">
+            <div className="flex border-b" style={{ borderColor: 'var(--glimmer-border)' }}>
               <button
                 onClick={() => setLeftPanelView('folders')}
                 className={`flex-1 py-3 text-sm font-medium transition-colors ${
@@ -715,22 +731,6 @@ export const AppLayout: React.FC = () => {
                 }`}
               >
                 {t('Folders')}
-              </button>
-              <button
-                onClick={() => setLeftPanelView('tags')}
-                className={`flex-1 py-3 text-sm font-medium transition-colors ${
-                  leftPanelView === 'tags' ? 'text-accent-500 border-b-2 border-accent-500' : 'text-primary-600 hover:bg-primary-50'
-                }`}
-              >
-                {t('Tags')}
-              </button>
-              <button
-                onClick={() => setLeftPanelView('calendar')}
-                className={`flex-1 py-3 text-sm font-medium transition-colors ${
-                  leftPanelView === 'calendar' ? 'text-accent-500 border-b-2 border-accent-500' : 'text-primary-600 hover:bg-primary-50'
-                }`}
-              >
-                {t('Calendar')}
               </button>
               <button
                 onClick={() => setLeftPanelView('tasks')}
@@ -758,35 +758,6 @@ export const AppLayout: React.FC = () => {
                     setIsSidebarOpen(false);
                   }}
                 />
-              ) : leftPanelView === 'tags' ? (
-                <TagPanel
-                  diaries={ordinaryDiaries}
-                  selectedTags={selectedTags}
-                  onSelectTag={handleSelectTag}
-                  onClearTags={handleClearTags}
-                  onRenameTag={handleRenameTag}
-                  onMergeTags={handleMergeTags}
-                  onApplyTagMergeSuggestions={handleApplyTagMergeSuggestions}
-                  onDeleteTag={handleDeleteTag}
-                />
-              ) : leftPanelView === 'calendar' ? (
-                <CalendarView
-                  diaries={ordinaryDiaries}
-                  onSelectDiary={(id) => {
-                    handleSelectDiary(id);
-                    setCurrentView('editor');
-                    setIsSidebarOpen(false);
-                  }}
-                  onCreateDiary={(date) => {
-                    const newDiary = handleCreateDiaryForDate(date);
-                    if (newDiary) {
-                      setCurrentDiaryId(newDiary.id);
-                      setCurrentView('editor');
-                      setIsSidebarOpen(false);
-                    }
-                  }}
-                  onChangeDiaryDate={handleChangeDiaryDate}
-                />
               ) : (
                 <TaskList onModalStateChange={setHasTaskListModalOpen} />
               )}
@@ -794,7 +765,7 @@ export const AppLayout: React.FC = () => {
             
             {/* 侧边栏底部 - 云同步状态 */}
             {isConfigured && user && (
-              <div className="border-t border-slate-200 p-3">
+              <div className="border-t p-3" style={{ borderColor: 'var(--glimmer-border)' }}>
                 <CloudSyncStatus
                   userEmail={user.email ?? null}
                   onRetry={handleRetrySync}

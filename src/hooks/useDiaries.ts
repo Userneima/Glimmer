@@ -33,6 +33,8 @@ type CreateDiaryOptions = {
   select?: boolean;
 };
 
+const CLOUD_PULL_THROTTLE_MS = 60 * 1000;
+
 export const useDiaries = () => {
   const { user } = useAuth();
   const userId = user?.id ?? null;
@@ -40,6 +42,7 @@ export const useDiaries = () => {
   const diarySyncTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const diarySyncInFlightRef = useRef<Set<string>>(new Set());
   const diarySyncDirtyRef = useRef<Record<string, boolean>>({});
+  const lastCloudPullAtRef = useRef(0);
   const [diaries, setDiaries] = useState<Diary[]>(() => storage.getDiaries());
   const [currentDiaryId, setCurrentDiaryId] = useState<string | null>(() => {
     const loadedDiaries = storage.getDiaries();
@@ -77,7 +80,8 @@ export const useDiaries = () => {
 
   const refreshDiariesFromCloud = useCallback(async (targetUserId: string) => {
     const remote = await cloud.fetchDiaries(targetUserId);
-    if (remote.length === 0) return; // Don't overwrite local with empty cloud result
+    lastCloudPullAtRef.current = Date.now();
+    if (remote.length === 0) return 0; // Don't overwrite local with empty cloud result
     const local = storage.getDiaries();
     const { merged: mergedItems, preservedLocal } = mergeDiariesPreferSafeLocal(local, remote);
     const merged = normalizeSystemDiaries(mergedItems).sort(
@@ -92,7 +96,49 @@ export const useDiaries = () => {
     preservedLocal.forEach((diary) => {
       void cloud.upsertDiary(targetUserId, diary).catch(() => {});
     });
+    return remote.length;
   }, [normalizeSystemDiaries]);
+
+  const pullDiariesFromCloud = useCallback(async (options?: { silent?: boolean; force?: boolean }) => {
+    if (!userId) return 0;
+    if (
+      options?.silent &&
+      !options.force &&
+      Date.now() - lastCloudPullAtRef.current < CLOUD_PULL_THROTTLE_MS
+    ) {
+      return 0;
+    }
+
+    if (!options?.silent) startSync();
+    try {
+      const count = await refreshDiariesFromCloud(userId);
+      if (!options?.silent) {
+        finishSync();
+        syncHistory.add({
+          type: 'diary',
+          action: 'fetch',
+          status: 'success',
+          message: t('Fetched diaries from cloud'),
+          count,
+        });
+      }
+      return count;
+    } catch (err) {
+      const errorMsg = getErrorMessage(err) || t('Cloud sync failed');
+      if (!options?.silent) {
+        failSync(errorMsg);
+        showToast(errorMsg);
+        syncHistory.add({
+          type: 'diary',
+          action: 'fetch',
+          status: 'error',
+          message: t('Failed to fetch diaries'),
+          error: errorMsg,
+        });
+      }
+      return 0;
+    }
+  }, [failSync, finishSync, refreshDiariesFromCloud, startSync, userId]);
 
   useEffect(() => {
     let active = true;
@@ -121,6 +167,7 @@ export const useDiaries = () => {
 
       try {
         const remote = await cloud.fetchDiaries(userId);
+        lastCloudPullAtRef.current = Date.now();
         if (!active) return;
 
         if (remote.length === 0) {
@@ -178,6 +225,32 @@ export const useDiaries = () => {
       active = false;
     };
   }, [normalizeSystemDiaries, userId]);
+
+  useEffect(() => {
+    if (!userId || typeof window === 'undefined' || typeof document === 'undefined') return;
+
+    const pullIfVisible = () => {
+      if (document.visibilityState === 'visible') {
+        void pullDiariesFromCloud({ silent: true });
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      pullIfVisible();
+    };
+
+    window.addEventListener('focus', pullIfVisible);
+    window.addEventListener('online', pullIfVisible);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    const intervalId = window.setInterval(pullIfVisible, 2 * 60 * 1000);
+
+    return () => {
+      window.removeEventListener('focus', pullIfVisible);
+      window.removeEventListener('online', pullIfVisible);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.clearInterval(intervalId);
+    };
+  }, [pullDiariesFromCloud, userId]);
 
   const createDiary = useCallback((folderId: string | null = null, options?: CreateDiaryOptions) => {
     const createdAt = options?.createdAt ?? Date.now();
@@ -556,8 +629,7 @@ export const useDiaries = () => {
     const lowerQuery = searchQuery.toLowerCase();
     return (
       diary.title.toLowerCase().includes(lowerQuery) ||
-      diary.content.toLowerCase().includes(lowerQuery) ||
-      diary.tags.some(tag => tag.toLowerCase().includes(lowerQuery))
+      diary.content.toLowerCase().includes(lowerQuery)
     );
   });
 
@@ -577,5 +649,6 @@ export const useDiaries = () => {
     setCurrentDiaryId,
     searchDiaries,
     importDiaries,
+    pullDiariesFromCloud,
   };
 };

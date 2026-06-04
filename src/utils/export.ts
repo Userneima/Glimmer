@@ -39,6 +39,8 @@ type FilePickerWindow = Window & {
   showDirectoryPicker?: () => Promise<FileSystemDirectoryHandle>;
 };
 
+const EXPORT_FONT_FAMILY = '"Glimmer PuHuiTi", "Alibaba PuHuiTi 3.0", "Alibaba PuHuiTi 3", "AlibabaPuHuiTi_3_55_Regular", "PingFang SC", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif';
+
 const WINDOWS_RESERVED_FILENAME_CHARS = new Set(['<', '>', ':', '"', '/', '\\', '|', '?', '*']);
 
 const MIME_TYPES: Record<ExportFormat, string> = {
@@ -68,7 +70,6 @@ export const sanitizeFilename = (name: string) =>
 
 export const convertToMarkdown = (diary: Diary): string => {
   const date = formatDate(diary.createdAt);
-  const tags = diary.tags.length > 0 ? `\nTags: ${diary.tags.join(', ')}` : '';
 
   let content = diary.content;
   content = content.replace(/<h1>(.*?)<\/h1>/g, '# $1\n');
@@ -81,20 +82,16 @@ export const convertToMarkdown = (diary: Diary): string => {
   content = content.replace(/<br\s*\/?>/g, '\n');
   content = content.replace(/<[^>]+>/g, '');
 
-  return `# ${diary.title}\n\nDate: ${date}${tags}\n\n---\n\n${content}`;
+  return `# ${diary.title}\n\nDate: ${date}\n\n---\n\n${content}`;
 };
 
 const renderDiaryBodyHTML = (diary: Diary) => {
   const date = formatDate(diary.createdAt);
-  const tags = diary.tags.length > 0
-    ? `<div class="tags">${diary.tags.map(tag => `<span class="tag">${tag}</span>`).join(' ')}</div>`
-    : '';
 
   return `
     <article class="diary-entry">
       <h1>${diary.title}</h1>
       <div class="meta">Created: ${date}</div>
-      ${tags}
       <div class="content">${diary.content}</div>
     </article>
   `;
@@ -114,8 +111,38 @@ export const convertToHTML = (diary: Diary): string => `<!DOCTYPE html>
 </html>`;
 
 const getExportStyles = () => `
+  @font-face {
+    font-family: 'Glimmer PuHuiTi';
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src:
+      local('AlibabaPuHuiTi_3_55_Regular'),
+      local('Alibaba PuHuiTi 3 55 Regular'),
+      local('Alibaba PuHuiTi 3.055 Regular');
+  }
+  @font-face {
+    font-family: 'Glimmer PuHuiTi';
+    font-style: normal;
+    font-weight: 600;
+    font-display: swap;
+    src:
+      local('AlibabaPuHuiTi_3_75_SemiBold'),
+      local('Alibaba PuHuiTi 3 75 SemiBold'),
+      local('Alibaba PuHuiTi 3.075 SemiBold');
+  }
+  @font-face {
+    font-family: 'Glimmer PuHuiTi';
+    font-style: normal;
+    font-weight: 700;
+    font-display: swap;
+    src:
+      local('AlibabaPuHuiTi_3_85_Bold'),
+      local('Alibaba PuHuiTi 3 85 Bold'),
+      local('Alibaba PuHuiTi 3.085 Bold');
+  }
   body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    font-family: ${EXPORT_FONT_FAMILY};
     max-width: 800px;
     margin: 0 auto;
     padding: 2rem;
@@ -138,20 +165,11 @@ const getExportStyles = () => `
     font-size: 0.875rem;
     margin: 1rem 0;
   }
-  .tags {
-    margin: 1rem 0;
-  }
-  .tag {
-    display: inline-block;
-    background: #dbeafe;
-    color: #1e40af;
-    padding: 0.25rem 0.75rem;
-    border-radius: 9999px;
-    font-size: 0.875rem;
-    margin-right: 0.5rem;
-  }
   .content {
     margin-top: 2rem;
+  }
+  [data-carryover-status="carried"] {
+    display: none;
   }
   code {
     background: #f3f4f6;
@@ -226,18 +244,6 @@ const diaryToDocParagraphs = (diary: Diary, includeSpacingAfter = true) => {
       ],
       spacing: { after: 100 },
     }),
-    ...(diary.tags.length > 0 ? [
-      new Paragraph({
-        children: [
-          new TextRun({
-            text: `Tags: ${diary.tags.join(', ')}`,
-            italics: true,
-            size: 20,
-          }),
-        ],
-        spacing: { after: 200 },
-      }),
-    ] : []),
     new Paragraph({
       text: '─'.repeat(50),
       spacing: { after: 200 },
@@ -311,10 +317,10 @@ const createPdfBlob = async (diaries: Diary[]): Promise<Blob> => {
   container.style.width = '800px';
   container.style.padding = '40px';
   container.style.backgroundColor = 'white';
-  container.style.fontFamily = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif';
+  container.style.fontFamily = EXPORT_FONT_FAMILY;
 
   container.innerHTML = `
-    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif; line-height: 1.6; color: #333;">
+    <div style="font-family: ${EXPORT_FONT_FAMILY}; line-height: 1.6; color: #333;">
       ${diaries.map((diary, index) => {
         const date = formatDate(diary.createdAt);
         return `
@@ -324,7 +330,6 @@ const createPdfBlob = async (diaries: Diary[]): Promise<Blob> => {
             </h1>
             <div style="font-size: 12px; color: #6b7280; margin: 10px 0;">
               <div>创建日期: ${date}</div>
-              ${diary.tags.length > 0 ? `<div style="margin-top: 5px;">标签: ${diary.tags.join(', ')}</div>` : ''}
             </div>
             <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;">
             <div style="font-size: 14px; line-height: 1.8;">

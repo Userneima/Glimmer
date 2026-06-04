@@ -1,17 +1,13 @@
 import React from 'react';
-import { Bell, Calendar as CalendarIcon, ChevronDown, ChevronUp, Clock, Edit, Trash2 } from 'lucide-react';
+import { Bell, Calendar as CalendarIcon, ChevronDown, ChevronUp, Clock, Edit, Sparkles, Trash2 } from 'lucide-react';
 import type { Task } from '../../types';
 import { t } from '../../i18n';
-import type { Tag } from '../../types';
 
 interface TaskItemProps {
   task: Task;
   isActiveTabCompleted: boolean;
   canMoveUp: boolean;
   canMoveDown: boolean;
-  bulkSelectMode: boolean;
-  isSelectedForBulk: boolean;
-  onToggleBulkSelect: () => void;
   onToggleComplete: () => void;
   onMoveUp: () => void;
   onMoveDown: () => void;
@@ -20,7 +16,6 @@ interface TaskItemProps {
   onSendToReminders: () => void;
   formatDateRange: (startDate: number | null | undefined, endDate: number | null | undefined) => string;
   formatCompletedDate: (timestamp: number | null | undefined) => string;
-  tags: Tag[];
 }
 
 export const TaskItem: React.FC<TaskItemProps> = ({
@@ -28,9 +23,6 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   isActiveTabCompleted,
   canMoveUp,
   canMoveDown,
-  bulkSelectMode,
-  isSelectedForBulk,
-  onToggleBulkSelect,
   onToggleComplete,
   onMoveUp,
   onMoveDown,
@@ -39,20 +31,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   onSendToReminders,
   formatDateRange,
   formatCompletedDate,
-  tags,
 }) => {
-  const getContrastTextColor = (backgroundColor: string): string => {
-    const hex = backgroundColor.replace('#', '');
-    const r = parseInt(hex.substring(0, 2), 16);
-    const g = parseInt(hex.substring(2, 4), 16);
-    const b = parseInt(hex.substring(4, 6), 16);
-    const brightness = (r * 299 + g * 587 + b * 114) / 1000;
-    return brightness > 128 ? '#000000' : '#ffffff';
-  };
-
-  const tagObjects = (task.tags || [])
-    .map((tagId) => tags.find((t) => t.id === tagId))
-    .filter((tag): tag is Tag => Boolean(tag));
   const remindersLink = task.externalLinks?.find(link => link.provider === 'apple-reminders');
   const isLinkedToReminders = remindersLink?.status === 'linked';
   const reminderStatusText = isLinkedToReminders
@@ -63,23 +42,10 @@ export const TaskItem: React.FC<TaskItemProps> = ({
 
   return (
     <li
-      className="p-3 rounded-xl border transition-colors duration-200"
-      style={{
-        backgroundColor: 'rgba(255, 255, 255, 0.85)',
-        borderColor: 'rgba(226, 232, 240, 0.6)',
-      }}
+      className="glimmer-card p-3 rounded-xl border transition-colors duration-200"
     >
       <div className="flex items-center gap-2">
         <div className="task-item flex-1 min-w-0 flex items-center gap-2">
-          {bulkSelectMode && (
-            <input
-              type="checkbox"
-              checked={isSelectedForBulk}
-              onChange={onToggleBulkSelect}
-              className="w-4 h-4 rounded border-2 border-purple-500 text-purple-600 focus:ring-purple-500 cursor-pointer flex-shrink-0"
-              title={t('Select for bulk operation')}
-            />
-          )}
           <input
             type="checkbox"
             checked={task.completed}
@@ -104,6 +70,10 @@ export const TaskItem: React.FC<TaskItemProps> = ({
             </span>
           )}
         </div>
+        <span className="inline-flex flex-shrink-0 items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-500">
+          <Sparkles size={10} />
+          {t('Glimmer')}
+        </span>
         <div className="flex flex-col gap-1 flex-shrink-0">
           {!isActiveTabCompleted && (
             <>
@@ -151,7 +121,6 @@ export const TaskItem: React.FC<TaskItemProps> = ({
       </div>
       {(task.notes ||
         (task.taskType === 'time-range' && task.startDate && task.endDate) ||
-        (task.tags && task.tags.length > 0) ||
         reminderStatusText ||
         (isActiveTabCompleted && task.completedAt)) && (
         <div className="ml-6 mt-1">
@@ -180,27 +149,6 @@ export const TaskItem: React.FC<TaskItemProps> = ({
               </svg>
               {t('Completed at')} {formatCompletedDate(task.completedAt)}
             </p>
-          )}
-          {tagObjects.length > 0 && (
-            <div className="flex flex-wrap gap-1 mt-1">
-              {tagObjects.slice(0, 2).map((tag) => (
-                <span
-                  key={tag.id}
-                  className="inline-flex items-center px-2 py-0.5 text-xs rounded-full"
-                  style={{
-                    backgroundColor: tag.color,
-                    color: getContrastTextColor(tag.color),
-                  }}
-                >
-                  {tag.name}
-                </span>
-              ))}
-              {tagObjects.length > 2 && (
-                <span className="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-gray-200 text-gray-700">
-                  +{tagObjects.length - 2}
-                </span>
-              )}
-            </div>
           )}
           {reminderStatusText && (
             <p className={`mt-1 text-xs ${isLinkedToReminders ? 'text-sky-600' : 'text-amber-600'}`}>

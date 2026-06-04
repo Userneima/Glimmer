@@ -63,7 +63,7 @@ export const AuthScreen: React.FC = () => {
   const disabled = submitting || loading || !isSupabaseConfigured;
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-primary-50 to-white px-4">
+    <div className="min-h-screen flex items-center justify-center px-4" style={{ background: 'var(--glimmer-bg-image)' }}>
       {/* Background decoration */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[600px] bg-gradient-to-br from-accent-500/10 via-accent-400/5 to-transparent rounded-full blur-3xl" />
@@ -84,7 +84,7 @@ export const AuthScreen: React.FC = () => {
         </div>
 
         {/* Card */}
-        <div className="bg-white/80 backdrop-blur-apple border border-white/60 rounded-apple-2xl shadow-apple-xl p-8">
+        <div className="glimmer-panel backdrop-blur-apple border rounded-apple-2xl shadow-apple-xl p-8">
           {!isSupabaseConfigured && (
             <div className="mb-6 flex items-start gap-3 rounded-apple-lg border border-semantic-warning/30 bg-semantic-warning/10 p-4">
               <AlertTriangle className="w-5 h-5 text-semantic-warning flex-shrink-0 mt-0.5" />
@@ -118,14 +118,12 @@ export const AuthScreen: React.FC = () => {
               <input
                 className="
                   w-full px-4 py-3 
-                  bg-primary-50/80 
-                  border border-primary-200
+                  glimmer-field
                   rounded-apple 
                   text-primary-900
                   placeholder:text-primary-400
                   transition-all duration-200 ease-apple
-                  focus:bg-white focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20 focus:outline-none
-                  hover:border-primary-300
+                  focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20 focus:outline-none
                   disabled:opacity-50 disabled:cursor-not-allowed
                 "
                 type="email"
@@ -144,14 +142,12 @@ export const AuthScreen: React.FC = () => {
               <input
                 className="
                   w-full px-4 py-3 
-                  bg-primary-50/80 
-                  border border-primary-200
+                  glimmer-field
                   rounded-apple 
                   text-primary-900
                   placeholder:text-primary-400
                   transition-all duration-200 ease-apple
-                  focus:bg-white focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20 focus:outline-none
-                  hover:border-primary-300
+                  focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20 focus:outline-none
                   disabled:opacity-50 disabled:cursor-not-allowed
                 "
                 type="password"
