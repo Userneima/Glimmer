@@ -24,6 +24,7 @@ import {
   isSystemDiary,
 } from '../utils/diarySystem';
 import { mergeDiariesPreferSafeLocal } from '../utils/diaryMerge';
+import { buildLegacyCarryoverMarkUpdates } from '../utils/diaryTaskCarryover';
 
 type CreateDiaryOptions = {
   createdAt?: number;
@@ -618,6 +619,16 @@ export const useDiaries = () => {
       })();
     }
   }, [diaries, userId, startSync, finishSync, failSync, setPendingCount]);
+
+  useEffect(() => {
+    const updates = buildLegacyCarryoverMarkUpdates(diaries);
+    if (updates.length === 0) return;
+
+    batchUpdateDiaries(updates, {
+      preserveUpdatedAt: true,
+      silent: true,
+    });
+  }, [batchUpdateDiaries, diaries]);
 
   const searchDiaries = useCallback((query: string) => {
     setSearchQuery(query);

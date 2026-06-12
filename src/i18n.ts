@@ -130,7 +130,9 @@ const translations: Record<string, string> = {
 
   // Folders
   'New Folder': '新建文件夹',
+  'New Subfolder': '新建子文件夹',
   'Create New Folder': '创建新文件夹',
+  'Create Subfolder': '创建子文件夹',
   'Rename Folder': '重命名文件夹',
   'Delete Folder': '删除文件夹',
   'Delete': '删除',
@@ -138,6 +140,7 @@ const translations: Record<string, string> = {
   'Rename': '重命名',
   'Delete Diary': '删除日记',
   'Are you sure you want to delete this folder? Diaries in this folder will be moved to "All Diaries".': '确认删除此文件夹吗？该文件夹中的日记将移动到「所有日记」。',
+  'Are you sure you want to delete this folder? Subfolders will also be deleted, and diaries in them will be moved to "All Diaries".': '确认删除此文件夹吗？它下面的子文件夹也会被删除，里面的日记会移动到「所有日记」。',
   'Change color': '更改颜色',
     'Move to Folder': '移动到文件夹',
     'Select destination folder': '选择目标文件夹',

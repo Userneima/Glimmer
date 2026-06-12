@@ -32,6 +32,7 @@ export const FolderTree: React.FC<FolderTreeProps> = ({
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
+  const [createParentId, setCreateParentId] = useState<string | null>(null);
   const [editingFolder, setEditingFolder] = useState<Folder | null>(null);
   const [deletingFolderId, setDeletingFolderId] = useState<string | null>(null);
   const [dragOverTarget, setDragOverTarget] = useState<string | null>(null);
@@ -59,8 +60,9 @@ export const FolderTree: React.FC<FolderTreeProps> = ({
 
   const handleCreateFolder = () => {
     if (newFolderName.trim()) {
-      onCreateFolder(newFolderName.trim(), null);
+      onCreateFolder(newFolderName.trim(), createParentId);
       setNewFolderName('');
+      setCreateParentId(null);
       setIsCreateModalOpen(false);
     }
   };
@@ -93,17 +95,116 @@ export const FolderTree: React.FC<FolderTreeProps> = ({
     setIsDeleteModalOpen(true);
   };
 
+  const openCreateModal = (parentId: string | null = null) => {
+    setCreateParentId(parentId);
+    setNewFolderName('');
+    setIsCreateModalOpen(true);
+  };
 
+  const childrenByParent = useMemo(() => {
+    const map = new Map<string | null, Folder[]>();
+    folders.forEach((folder) => {
+      const key = folder.parentId ?? null;
+      map.set(key, [...(map.get(key) ?? []), folder]);
+    });
+    map.forEach((items) => {
+      items.sort((a, b) => {
+        const createdAtDiff = b.createdAt - a.createdAt;
+        if (createdAtDiff !== 0) return createdAtDiff;
+        return b.id.localeCompare(a.id);
+      });
+    });
+    return map;
+  }, [folders]);
 
-  // Sort root folders by createdAt in descending order (latest first)
-  const rootFolders = useMemo(() => {
-    const root = folders.filter(f => !f.parentId);
-    return root.sort((a, b) => {
+  const rootFolders = useMemo(() => [...folders.filter(f => !f.parentId)].sort((a, b) => {
       const createdAtDiff = b.createdAt - a.createdAt;
       if (createdAtDiff !== 0) return createdAtDiff;
       return b.id.localeCompare(a.id);
-    });
-  }, [folders]);
+  }), [folders]);
+
+  const renderFolderNode = (folder: Folder, depth = 0): React.ReactNode => {
+    const childFolders = childrenByParent.get(folder.id) ?? [];
+    const isSelected = selectedFolderId === folder.id;
+    const isDragTarget = dragOverTarget === folder.id;
+
+    return (
+      <div key={folder.id} className="mb-1.5">
+        <div
+          className={`flex items-center justify-between px-3 py-2.5 rounded-xl cursor-pointer transition-colors duration-200 group border ${
+            isDragTarget ? 'shadow-sm' : ''
+          }`}
+          style={{
+            marginLeft: depth ? `${depth * 14}px` : undefined,
+            backgroundColor: isSelected ? 'var(--glimmer-surface-active)' : 'var(--glimmer-surface-card)',
+            color: isSelected ? 'var(--aurora-accent)' : 'var(--aurora-primary)',
+            borderColor: isSelected ? 'var(--glimmer-border-strong)' : 'var(--glimmer-border)'
+          }}
+          onMouseEnter={(e) => {
+            if (!isSelected) {
+              e.currentTarget.style.backgroundColor = 'var(--glimmer-surface-card-hover)';
+            }
+          }}
+          onMouseLeave={(e) => {
+            if (!isSelected) {
+              e.currentTarget.style.backgroundColor = 'var(--glimmer-surface-card)';
+            }
+          }}
+          onDragOver={(e) => {
+            e.preventDefault();
+            setDragOverTarget(folder.id);
+          }}
+          onDragLeave={() => setDragOverTarget(null)}
+          onDrop={(e) => handleDropToFolder(e, folder.id)}
+        >
+          <div
+            className="flex min-w-0 flex-1 items-center"
+            onClick={() => onSelectFolder(folder.id)}
+          >
+            <FolderIcon size={16} className="mr-2 shrink-0" />
+            <span className="truncate text-sm font-medium">{folder.name}</span>
+          </div>
+          <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                openCreateModal(folder.id);
+              }}
+              className="p-1.5 hover:bg-white/50 rounded-lg transition-all duration-200"
+              title={t('New Subfolder')}
+            >
+              <FolderPlus size={14} />
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                openEditModal(folder);
+              }}
+              className="p-1.5 hover:bg-white/50 rounded-lg transition-all duration-200"
+              title={t('Edit')}
+            >
+              <Edit2 size={14} />
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                openDeleteModal(folder.id);
+              }}
+              className="p-1.5 hover:bg-red-100/50 text-red-500 rounded-lg transition-all duration-200"
+              title={t('Delete')}
+            >
+              <Trash2 size={14} />
+            </button>
+          </div>
+        </div>
+        {childFolders.length > 0 && (
+          <div className="mt-1">
+            {childFolders.map((child) => renderFolderNode(child, depth + 1))}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="glimmer-panel h-full flex flex-col">
@@ -111,7 +212,7 @@ export const FolderTree: React.FC<FolderTreeProps> = ({
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-lg font-semibold" style={{ color: 'var(--aurora-primary)' }}>{t('Folders')}</h2>
           <button
-            onClick={() => setIsCreateModalOpen(true)}
+            onClick={() => openCreateModal(null)}
             className="p-1.5 rounded-xl transition-all duration-200"
             style={{ color: 'var(--aurora-accent)' }}
             onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--glimmer-surface-active)'; }}
@@ -155,75 +256,17 @@ export const FolderTree: React.FC<FolderTreeProps> = ({
 
       {/* 文件夹列表区 - 毛玻璃风 */}
       <div className="flex-1 overflow-y-auto p-3">
-        {rootFolders.map(folder => (
-          <div key={folder.id} className="mb-1.5">
-            <div
-              className={`flex items-center justify-between px-3 py-2.5 rounded-xl cursor-pointer transition-colors duration-200 group border ${
-                dragOverTarget === folder.id ? 'shadow-sm' : ''
-              }`}
-              style={{
-                backgroundColor: selectedFolderId === folder.id ? 'var(--glimmer-surface-active)' : 'var(--glimmer-surface-card)',
-                color: selectedFolderId === folder.id ? 'var(--aurora-accent)' : 'var(--aurora-primary)',
-                borderColor: selectedFolderId === folder.id ? 'var(--glimmer-border-strong)' : 'var(--glimmer-border)'
-              }}
-              onMouseEnter={(e) => {
-                if (selectedFolderId !== folder.id) {
-                  e.currentTarget.style.backgroundColor = 'var(--glimmer-surface-card-hover)';
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (selectedFolderId !== folder.id) {
-                  e.currentTarget.style.backgroundColor = 'var(--glimmer-surface-card)';
-                }
-              }}
-              onDragOver={(e) => {
-                e.preventDefault();
-                setDragOverTarget(folder.id);
-              }}
-              onDragLeave={() => setDragOverTarget(null)}
-              onDrop={(e) => handleDropToFolder(e, folder.id)}
-            >
-              <div
-                className="flex items-center flex-1"
-                onClick={() => onSelectFolder(folder.id)}
-              >
-                <FolderIcon size={16} className="mr-2" />
-                <span className="text-sm font-medium truncate">{folder.name}</span>
-              </div>
-              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    openEditModal(folder);
-                  }}
-                  className="p-1.5 hover:bg-white/50 rounded-lg transition-all duration-200"
-                  title={t('Edit')}
-                >
-                  <Edit2 size={14} />
-                </button>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    openDeleteModal(folder.id);
-                  }}
-                  className="p-1.5 hover:bg-red-100/50 text-red-500 rounded-lg transition-all duration-200"
-                  title={t('Delete')}
-                >
-                  <Trash2 size={14} />
-                </button>
-              </div>
-            </div>
-          </div>
-        ))}
+        {rootFolders.map(folder => renderFolderNode(folder))}
       </div>
 
       <Modal
         isOpen={isCreateModalOpen}
         onClose={() => {
           setIsCreateModalOpen(false);
+          setCreateParentId(null);
           setNewFolderName('');
         }}
-        title={t('Create New Folder')}
+        title={createParentId ? t('Create Subfolder') : t('Create New Folder')}
       >
         <Input
           value={newFolderName}
@@ -240,6 +283,7 @@ export const FolderTree: React.FC<FolderTreeProps> = ({
             variant="secondary"
             onClick={() => {
               setIsCreateModalOpen(false);
+              setCreateParentId(null);
               setNewFolderName('');
             }}
             className="flex-1"
@@ -292,7 +336,7 @@ export const FolderTree: React.FC<FolderTreeProps> = ({
         title={t('Delete Folder')}
       >
         <p className="text-slate-600 mb-4 leading-relaxed">
-          {t('Are you sure you want to delete this folder? Diaries in this folder will be moved to "All Diaries".')}
+          {t('Are you sure you want to delete this folder? Subfolders will also be deleted, and diaries in them will be moved to "All Diaries".')}
         </p>
         <div className="flex gap-2">
           <Button variant="danger" onClick={handleDeleteFolder} className="flex-1">

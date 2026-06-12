@@ -1,5 +1,18 @@
 import type { Editor } from '@tiptap/core';
 
+const isInsideListItem = (editor: Editor) => {
+  const { $from } = editor.state.selection;
+
+  for (let depth = $from.depth; depth > 0; depth -= 1) {
+    const nodeName = $from.node(depth).type.name;
+    if (nodeName === 'taskItem' || nodeName === 'listItem') {
+      return true;
+    }
+  }
+
+  return false;
+};
+
 const insertLeadingSpaces = (editor: Editor) => {
   const { state, dispatch } = editor.view;
   const { $from } = state.selection;
@@ -39,28 +52,30 @@ const removeLeadingSpaces = (editor: Editor) => {
 };
 
 export const indentEditorSelection = (editor: Editor) => {
-  if (editor.isActive('taskItem')) {
-    const handled = editor.chain().focus().sinkListItem('taskItem').run();
-    if (handled) return true;
-  }
+  const handledTaskItem = editor.chain().focus().sinkListItem('taskItem').run();
+  if (handledTaskItem) return true;
 
-  if (editor.isActive('bulletList') || editor.isActive('orderedList')) {
-    const handled = editor.chain().focus().sinkListItem('listItem').run();
-    if (handled) return true;
+  const handledListItem = editor.chain().focus().sinkListItem('listItem').run();
+  if (handledListItem) return true;
+
+  if (isInsideListItem(editor)) {
+    editor.view.focus();
+    return true;
   }
 
   return insertLeadingSpaces(editor);
 };
 
 export const outdentEditorSelection = (editor: Editor) => {
-  if (editor.isActive('taskItem')) {
-    const handled = editor.chain().focus().liftListItem('taskItem').run();
-    if (handled) return true;
-  }
+  const handledTaskItem = editor.chain().focus().liftListItem('taskItem').run();
+  if (handledTaskItem) return true;
 
-  if (editor.isActive('bulletList') || editor.isActive('orderedList')) {
-    const handled = editor.chain().focus().liftListItem('listItem').run();
-    if (handled) return true;
+  const handledListItem = editor.chain().focus().liftListItem('listItem').run();
+  if (handledListItem) return true;
+
+  if (isInsideListItem(editor)) {
+    editor.view.focus();
+    return true;
   }
 
   return removeLeadingSpaces(editor);

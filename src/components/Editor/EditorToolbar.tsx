@@ -96,33 +96,60 @@ const setOrderedListStart = (editor: Editor, start: number) => {
   view.focus();
 };
 
-const ToolbarButton: React.FC<ToolbarButtonProps> = ({ onClick, isActive, disabled = false, children, title, className = '' }) => (
-  <button
-    type="button"
-    onClick={onClick}
-    title={title}
-    disabled={disabled}
-    className={`p-2 rounded-lg transition-colors duration-200 active:scale-95 flex items-center justify-center w-10 h-10 ${disabled ? 'cursor-not-allowed opacity-40 active:scale-100' : ''} ${className}`}
-    style={{
-      backgroundColor: isActive ? 'var(--glimmer-surface-active)' : 'transparent',
-      color: isActive ? 'var(--aurora-accent)' : 'var(--aurora-secondary)'
-    }}
-    onMouseEnter={(e) => {
-      if (!isActive && !disabled) {
-        e.currentTarget.style.backgroundColor = 'var(--glimmer-surface-card-hover)';
-        e.currentTarget.style.color = 'var(--aurora-accent)';
-      }
-    }}
-    onMouseLeave={(e) => {
-      if (!isActive && !disabled) {
-        e.currentTarget.style.backgroundColor = 'transparent';
-        e.currentTarget.style.color = 'var(--aurora-secondary)';
-      }
-    }}
-  >
-    {children}
-  </button>
-);
+const ToolbarButton: React.FC<ToolbarButtonProps> = ({ onClick, isActive, disabled = false, children, title, className = '' }) => {
+  const touchCommandHandledRef = React.useRef(false);
+
+  return (
+    <button
+      type="button"
+      onClick={(event) => {
+        if (touchCommandHandledRef.current) {
+          touchCommandHandledRef.current = false;
+          event.preventDefault();
+          return;
+        }
+        onClick();
+      }}
+      title={title}
+      disabled={disabled}
+      onMouseDown={(event) => {
+        event.preventDefault();
+      }}
+      onTouchStart={(event) => {
+        if (disabled) return;
+        event.preventDefault();
+      }}
+      onTouchEnd={(event) => {
+        if (disabled) return;
+        event.preventDefault();
+        touchCommandHandledRef.current = true;
+        onClick();
+        window.setTimeout(() => {
+          touchCommandHandledRef.current = false;
+        }, 350);
+      }}
+      className={`p-2 rounded-lg transition-colors duration-200 active:scale-95 flex items-center justify-center w-10 h-10 ${disabled ? 'cursor-not-allowed opacity-40 active:scale-100' : ''} ${className}`}
+      style={{
+        backgroundColor: isActive ? 'var(--glimmer-surface-active)' : 'transparent',
+        color: isActive ? 'var(--aurora-accent)' : 'var(--aurora-secondary)'
+      }}
+      onMouseEnter={(e) => {
+        if (!isActive && !disabled) {
+          e.currentTarget.style.backgroundColor = 'var(--glimmer-surface-card-hover)';
+          e.currentTarget.style.color = 'var(--aurora-accent)';
+        }
+      }}
+      onMouseLeave={(e) => {
+        if (!isActive && !disabled) {
+          e.currentTarget.style.backgroundColor = 'transparent';
+          e.currentTarget.style.color = 'var(--aurora-secondary)';
+        }
+      }}
+    >
+      {children}
+    </button>
+  );
+};
 
 export const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor }) => {
   const orderedListState = useEditorState({

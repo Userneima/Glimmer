@@ -705,10 +705,22 @@ input, textarea, select {
 }
 
 .glimmer-system-card {
-  background:
-    linear-gradient(135deg, color-mix(in srgb, var(--aurora-accent) 13%, var(--glimmer-surface-card)) 0%, var(--glimmer-surface-card-hover) 100%);
-  border-color: var(--glimmer-border-strong);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--aurora-accent) 10%, transparent);
+  background: color-mix(in srgb, var(--glimmer-surface-card) 94%, var(--aurora-accent) 6%);
+  border-color: var(--glimmer-border);
+  box-shadow: inset 3px 0 0 color-mix(in srgb, var(--aurora-accent) 42%, transparent);
+}
+
+.glimmer-system-card:hover {
+  background: color-mix(in srgb, var(--glimmer-surface-card-hover) 96%, var(--aurora-accent) 4%);
+  box-shadow:
+    inset 3px 0 0 color-mix(in srgb, var(--aurora-accent) 48%, transparent),
+    var(--glimmer-shadow-soft);
+}
+
+.glimmer-system-badge {
+  background: color-mix(in srgb, var(--glimmer-surface-muted) 90%, var(--aurora-accent) 10%);
+  border-color: color-mix(in srgb, var(--glimmer-border) 84%, var(--aurora-accent) 16%);
+  color: var(--aurora-secondary);
 }
 
 .glimmer-info-strip {

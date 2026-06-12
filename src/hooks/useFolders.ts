@@ -97,18 +97,39 @@ export const useFolders = () => {
   }, [folders, userId]);
 
   const deleteFolder = useCallback((id: string) => {
-    storage.deleteFolder(id);
-    setFolders(prev => prev.filter(f => f.id !== id));
+    const childMap = new Map<string | null, Folder[]>();
+    folders.forEach((folder) => {
+      const key = folder.parentId ?? null;
+      childMap.set(key, [...(childMap.get(key) ?? []), folder]);
+    });
+
+    const idsToDelete = new Set<string>();
+    const deleteOrder: string[] = [];
+    const collect = (folderId: string) => {
+      if (idsToDelete.has(folderId)) return;
+      idsToDelete.add(folderId);
+      (childMap.get(folderId) ?? []).forEach((child) => collect(child.id));
+      deleteOrder.push(folderId);
+    };
+    collect(id);
+
+    deleteOrder.forEach((folderId) => storage.deleteFolder(folderId));
+    setFolders(prev => prev.filter(f => !idsToDelete.has(f.id)));
     if (userId) {
       const target = folders.find(f => f.id === id);
-      void cloud.deleteFolder(userId, id).catch((err) => {
+      const targets = folders.filter(f => idsToDelete.has(f.id));
+      void (async () => {
+        for (const folderId of deleteOrder) {
+          await cloud.deleteFolder(userId, folderId);
+        }
+      })().catch((err) => {
         if (target) {
-          syncQueue.enqueue({
+          targets.forEach((folder) => syncQueue.enqueue({
             type: 'folder',
             action: 'delete',
-            data: target,
+            data: folder,
             userId,
-          });
+          }));
         }
         showToast(getErrorMessage(err) || t('Cloud sync failed'));
       });

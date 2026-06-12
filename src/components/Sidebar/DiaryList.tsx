@@ -13,6 +13,7 @@ import { showToast } from '../../utils/toast';
 const DIARY_SORT_MODE_KEY = 'diary-sort-mode';
 const DIARY_SORT_MODE_TOUCHED_KEY = 'diary-sort-mode-touched';
 type DiarySortMode = 'updated-desc' | 'updated-asc' | 'created-desc' | 'created-asc' | 'title-asc' | 'title-desc';
+type FolderOption = DiaryFolder & { depth: number };
 const DIARY_SORT_MODES: DiarySortMode[] = [
   'updated-desc',
   'updated-asc',
@@ -72,11 +73,39 @@ export const DiaryList: React.FC<DiaryListProps> = ({
   const [movingDiaryId, setMovingDiaryId] = useState<string | null>(null);
   const [targetFolderId, setTargetFolderId] = useState<string | null>(null);
 
+  const folderDescendantIds = useMemo(() => {
+    const childrenByParent = new Map<string | null, DiaryFolder[]>();
+    folders.forEach((folder) => {
+      const key = folder.parentId ?? null;
+      childrenByParent.set(key, [...(childrenByParent.get(key) ?? []), folder]);
+    });
+
+    const map = new Map<string, Set<string>>();
+    const collect = (folderId: string): Set<string> => {
+      const cached = map.get(folderId);
+      if (cached) return cached;
+      const ids = new Set<string>([folderId]);
+      (childrenByParent.get(folderId) ?? []).forEach((child) => {
+        collect(child.id).forEach((id) => ids.add(id));
+      });
+      map.set(folderId, ids);
+      return ids;
+    };
+
+    folders.forEach((folder) => collect(folder.id));
+    return map;
+  }, [folders]);
+
+  const selectedFolderIds = useMemo(() => {
+    if (!selectedFolderId) return null;
+    return folderDescendantIds.get(selectedFolderId) ?? new Set([selectedFolderId]);
+  }, [folderDescendantIds, selectedFolderId]);
+
   const filteredDiaries = diaries.filter((diary) => {
     const isLongTermMaster = isLongTermMasterDiary(diary);
     return (
       diary.id !== TEMPLATE_DIARY_ID &&
-      (isLongTermMaster || selectedFolderId === null || diary.folderId === selectedFolderId)
+      (isLongTermMaster || selectedFolderId === null || (diary.folderId !== null && selectedFolderIds?.has(diary.folderId)))
     );
   });
 
@@ -144,13 +173,34 @@ export const DiaryList: React.FC<DiaryListProps> = ({
     setTargetFolderId(null);
   };
 
-  // Sort folders by createdAt in descending order (latest first)
-  const sortedFolders = useMemo(() => {
-    return [...folders].sort((a, b) => {
+  const folderOptions = useMemo<FolderOption[]>(() => {
+    const childrenByParent = new Map<string | null, DiaryFolder[]>();
+    folders.forEach((folder) => {
+      const key = folder.parentId ?? null;
+      childrenByParent.set(key, [...(childrenByParent.get(key) ?? []), folder]);
+    });
+    childrenByParent.forEach((items) => {
+      items.sort((a, b) => {
+        const createdAtDiff = b.createdAt - a.createdAt;
+        if (createdAtDiff !== 0) return createdAtDiff;
+        return b.id.localeCompare(a.id);
+      });
+    });
+
+    const result: FolderOption[] = [];
+    const append = (items: DiaryFolder[], depth: number) => {
+      items.forEach((folder) => {
+        result.push({ ...folder, depth });
+        append(childrenByParent.get(folder.id) ?? [], depth + 1);
+      });
+    };
+    const root = [...(childrenByParent.get(null) ?? [])].sort((a, b) => {
       const createdAtDiff = b.createdAt - a.createdAt;
       if (createdAtDiff !== 0) return createdAtDiff;
       return b.id.localeCompare(a.id);
     });
+    append(root, 0);
+    return result;
   }, [folders]);
 
   const getPreviewText = (content: string): string => {
@@ -271,12 +321,12 @@ export const DiaryList: React.FC<DiaryListProps> = ({
               key={diary.id}
               draggable={!isLongTermMaster}
               className={`p-4 cursor-pointer transition-colors duration-200 group relative mx-1 my-1.5 rounded-xl border ${
-                currentDiaryId === diary.id
+                currentDiaryId === diary.id && !isLongTermMaster
                   ? 'shadow-md'
                   : 'hover:shadow-sm'
               } ${isLongTermMaster ? 'glimmer-system-card' : currentDiaryId === diary.id ? 'glimmer-card-active' : 'glimmer-card'}`}
               style={{
-                borderColor: currentDiaryId === diary.id ? 'var(--glimmer-border-strong)' : undefined
+                borderColor: currentDiaryId === diary.id && !isLongTermMaster ? 'var(--glimmer-border-strong)' : undefined
               }}
               onMouseEnter={(e) => {
                 if (!isLongTermMaster && currentDiaryId !== diary.id) {
@@ -304,7 +354,7 @@ export const DiaryList: React.FC<DiaryListProps> = ({
                     {isLongTermMaster ? t('Long-term Master') : (diary.title || t('Untitled'))}
                   </h3>
                   {isLongTermMaster && (
-                    <div className="ml-2 inline-flex shrink-0 items-center gap-1.5 rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-700">
+                    <div className="glimmer-system-badge ml-2 inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium">
                       <FileText size={13} strokeWidth={1.9} />
                       {t('System Document')}
                     </div>
@@ -377,9 +427,9 @@ export const DiaryList: React.FC<DiaryListProps> = ({
             onChange={(e) => setTargetFolderId(e.target.value || null)}
           >
             <option value="">{t('All Diaries')}</option>
-            {sortedFolders.map(folder => (
+            {folderOptions.map(folder => (
               <option key={folder.id} value={folder.id}>
-                {folder.name}
+                {'　'.repeat(folder.depth)}{folder.depth > 0 ? '↳ ' : ''}{folder.name}
               </option>
             ))}
           </select>

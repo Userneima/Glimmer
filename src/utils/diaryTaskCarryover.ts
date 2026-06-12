@@ -135,6 +135,17 @@ const extractDiaryTaskIds = (content: string) => {
   );
 };
 
+const extractDiaryTaskIdEntries = (content: string) => {
+  if (!content.trim()) return [];
+
+  const doc = parseHtmlDocument(content);
+  return Array.from(doc.querySelectorAll('li[data-type="taskItem"]'))
+    .map((item) => ({
+      id: normalizeTaskText(getTaskItemText(item)),
+    }))
+    .filter((entry) => isMeaningfulTaskText(entry.id));
+};
+
 export const buildTaskCarryoverSignature = (sourceDiaryId: string, targetDiaryId: string, tasks: CarryoverTask[]) => {
   const taskIds = tasks.map((task) => task.id).sort().join('|');
   return `${sourceDiaryId}->${targetDiaryId}:${taskIds}`;
@@ -251,4 +262,45 @@ export const markCarryoverTasksAsCarried = (
   });
 
   return changed ? (doc.querySelector('main')?.innerHTML ?? content) : content;
+};
+
+export const buildLegacyCarryoverMarkUpdates = (diaries: Diary[]) => {
+  const ordinaryDiaries = diaries
+    .filter((diary) => !isSystemDiary(diary))
+    .sort((a, b) => a.createdAt - b.createdAt || a.updatedAt - b.updatedAt);
+
+  const updates: Array<{ id: string; changes: Pick<Diary, 'content'> }> = [];
+
+  ordinaryDiaries.forEach((sourceDiary, sourceIndex) => {
+    const sourceTasks = extractIncompleteDiaryTasks(sourceDiary.content);
+    if (sourceTasks.length === 0) return;
+
+    const laterDiaries = ordinaryDiaries.slice(sourceIndex + 1);
+    const tasksByTargetDiaryId = new Map<string, CarryoverTask[]>();
+
+    sourceTasks.forEach((task) => {
+      const targetDiary = laterDiaries.find((diary) => (
+        extractDiaryTaskIdEntries(diary.content).some((entry) => entry.id === task.id)
+      ));
+      if (!targetDiary) return;
+
+      const tasks = tasksByTargetDiaryId.get(targetDiary.id) ?? [];
+      tasks.push(task);
+      tasksByTargetDiaryId.set(targetDiary.id, tasks);
+    });
+
+    let nextContent = sourceDiary.content;
+    tasksByTargetDiaryId.forEach((tasks, targetDiaryId) => {
+      nextContent = markCarryoverTasksAsCarried(nextContent, tasks, targetDiaryId);
+    });
+
+    if (nextContent !== sourceDiary.content) {
+      updates.push({
+        id: sourceDiary.id,
+        changes: { content: nextContent },
+      });
+    }
+  });
+
+  return updates;
 };
