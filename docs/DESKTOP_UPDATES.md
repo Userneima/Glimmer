@@ -11,6 +11,12 @@
 - 本机签名私钥：`~/.tauri/glimmer-updater.key`
 - 项目内只保存公钥，私钥不能提交
 
+## 现状
+
+- 最新发布版本是 0.2.0（2026-11-25），开源后的第一个版本；在本机实测过从 0.1.0 点更新提示升到 0.2.0，日记数据完整。
+- 安装包只有 Apple Silicon（aarch64），macOS 12 及以上。
+- 安装包只做了临时签名（ad-hoc），没有 Apple 开发者认证；别人下载后第一次打开会被系统拦下，发布说明里要写上右键「打开」或 `xattr -cr /Applications/Glimmer.app`。不要用本机钥匙串里的 Apple Development 证书签发布包，证书里带着个人邮箱。
+
 ## 发布步骤
 
 1. 修改 `src-tauri/tauri.conf.json` 里的 `version`。
