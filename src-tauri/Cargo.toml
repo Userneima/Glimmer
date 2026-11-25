@@ -1,0 +1,31 @@
+[package]
+name = "glimmer"
+version = "0.1.0"
+description = "Glimmer desktop shell"
+authors = ["Wang Yuchao"]
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+# 叫停跑批要给整个进程组发 SIGTERM（只杀 python，它拉起的 claude 会变孤儿继续跑）。
+# 标准库只有 SIGKILL 的 Child::kill()，杀不到孙子进程，所以要 libc。
+libc = "0.2"
+# 导出文件从前端以 base64 传过来，再写进「下载」文件夹。
+base64 = "0.22"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tauri = { version = "2", features = [] }
+tauri-plugin-process = "2"
+tauri-plugin-updater = "2"
+
+# 读 Mac 日历。直接在 Glimmer 进程里调 EventKit，系统权限才会记在 Glimmer 名下；
+# 另起一个编译出来的小程序去读，权限会落到那个小程序头上。
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+block2 = "0.6"
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSArray", "NSDate", "NSError", "NSString", "NSObject"] }
+# 记住登录用的邮箱和密码，存在系统钥匙串里，不进 Glimmer 自己的数据文件。
+security-framework = "3"
+objc2-event-kit = { version = "0.3", default-features = false, features = ["std", "block2", "EKCalendar", "EKCalendarItem", "EKEvent", "EKEventStore", "EKObject", "EKTypes"] }

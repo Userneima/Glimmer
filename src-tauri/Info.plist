@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>NSCalendarsUsageDescription</key>
+  <string>Glimmer shows each day's calendar events above that day's diary. It only reads your calendar and never changes it.</string>
+  <key>NSCalendarsFullAccessUsageDescription</key>
+  <string>Glimmer shows each day's calendar events above that day's diary. It only reads your calendar and never changes it.</string>
+</dict>
+</plist>

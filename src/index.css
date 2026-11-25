@@ -1,0 +1,937 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================
+   Glimmer calm writing theme
+   ============================================ */
+
+@font-face {
+  font-family: 'Glimmer PuHuiTi';
+  font-style: normal;
+  font-weight: 300;
+  font-display: swap;
+  src:
+    local('AlibabaPuHuiTi_3_45_Light'),
+    local('Alibaba PuHuiTi 3 45 Light'),
+    local('Alibaba PuHuiTi 3.045 Light');
+}
+
+@font-face {
+  font-family: 'Glimmer PuHuiTi';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src:
+    local('AlibabaPuHuiTi_3_55_Regular'),
+    local('Alibaba PuHuiTi 3 55 Regular'),
+    local('Alibaba PuHuiTi 3.055 Regular');
+}
+
+@font-face {
+  font-family: 'Glimmer PuHuiTi';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src:
+    local('AlibabaPuHuiTi_3_65_Medium'),
+    local('Alibaba PuHuiTi 3 65 Medium'),
+    local('Alibaba PuHuiTi 3.065 Medium');
+}
+
+@font-face {
+  font-family: 'Glimmer PuHuiTi';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src:
+    local('AlibabaPuHuiTi_3_75_SemiBold'),
+    local('Alibaba PuHuiTi 3 75 SemiBold'),
+    local('Alibaba PuHuiTi 3.075 SemiBold');
+}
+
+@font-face {
+  font-family: 'Glimmer PuHuiTi';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src:
+    local('AlibabaPuHuiTi_3_85_Bold'),
+    local('Alibaba PuHuiTi 3 85 Bold'),
+    local('Alibaba PuHuiTi 3.085 Bold');
+}
+
+@font-face {
+  font-family: 'Glimmer PuHuiTi';
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+  src:
+    local('AlibabaPuHuiTi_3_95_ExtraBold'),
+    local('Alibaba PuHuiTi 3 95 ExtraBold'),
+    local('Alibaba PuHuiTi 3.095 ExtraBold');
+}
+
+:root {
+  --glimmer-font-sans: 'Glimmer PuHuiTi', 'Alibaba PuHuiTi 3.0', 'Alibaba PuHuiTi 3', 'AlibabaPuHuiTi_3_55_Regular', 'PingFang SC', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', 'Microsoft YaHei', 'Helvetica', 'Arial', sans-serif;
+  --aurora-primary: #182332;
+  --aurora-secondary: #3d4b5f;
+  --aurora-muted: #6b7789;
+  --aurora-accent: #0b8fd3;
+  --aurora-accent-alt: #37aee2;
+  --aurora-glass: rgba(255, 255, 255, 0.68);
+  --aurora-border: rgba(135, 154, 178, 0.22);
+  --glimmer-bg: #f4f8fb;
+  --glimmer-bg-image:
+    radial-gradient(circle at 14% 8%, rgba(125, 190, 232, 0.28) 0%, transparent 42%),
+    radial-gradient(circle at 88% 92%, rgba(131, 205, 190, 0.22) 0%, transparent 46%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.76) 0%, rgba(236, 243, 249, 0.72) 100%);
+  --glimmer-surface: rgba(255, 255, 255, 0.82);
+  --glimmer-surface-strong: rgba(255, 255, 255, 0.94);
+  --glimmer-surface-muted: rgba(242, 247, 251, 0.78);
+  --glimmer-surface-header: rgba(249, 252, 255, 0.72);
+  --glimmer-surface-card: rgba(255, 255, 255, 0.74);
+  --glimmer-surface-card-hover: rgba(255, 255, 255, 0.92);
+  --glimmer-surface-active: rgba(11, 143, 211, 0.12);
+  --glimmer-surface-field: rgba(255, 255, 255, 0.84);
+  --glimmer-editor-bg: rgba(255, 255, 255, 0.8);
+  --glimmer-border: rgba(127, 146, 170, 0.24);
+  --glimmer-border-strong: rgba(11, 143, 211, 0.45);
+  --glimmer-shadow: 0 12px 34px rgba(44, 70, 100, 0.09);
+  --glimmer-shadow-soft: 0 6px 18px rgba(44, 70, 100, 0.07);
+  --glimmer-danger-surface: rgba(254, 226, 226, 0.78);
+  --glimmer-code-bg: rgba(24, 35, 50, 0.06);
+  --glimmer-empty-view-bg: linear-gradient(180deg, rgba(248, 251, 254, 0.88) 0%, rgba(234, 244, 250, 0.56) 100%);
+  --glimmer-scrollbar: rgba(50, 66, 84, 0.22);
+  --glimmer-scrollbar-hover: rgba(50, 66, 84, 0.36);
+}
+
+:root[data-theme="dark"] {
+  --aurora-primary: #f4f8ff;
+  --aurora-secondary: #d5deeb;
+  --aurora-muted: #a7b4c6;
+  --aurora-accent: #5abde8;
+  --aurora-accent-alt: #86d2ee;
+  --aurora-glass: rgba(17, 24, 34, 0.78);
+  --aurora-border: rgba(151, 169, 190, 0.16);
+  --glimmer-bg: #0c1219;
+  --glimmer-bg-image:
+    radial-gradient(circle at 12% 8%, rgba(42, 116, 153, 0.24) 0%, transparent 42%),
+    radial-gradient(circle at 88% 92%, rgba(41, 102, 96, 0.18) 0%, transparent 48%),
+    linear-gradient(135deg, rgba(12, 18, 25, 0.98) 0%, rgba(16, 24, 34, 0.96) 100%);
+  --glimmer-surface: rgba(17, 24, 34, 0.78);
+  --glimmer-surface-strong: rgba(20, 28, 39, 0.94);
+  --glimmer-surface-muted: rgba(22, 31, 43, 0.76);
+  --glimmer-surface-header: rgba(18, 26, 36, 0.8);
+  --glimmer-surface-card: rgba(21, 30, 42, 0.74);
+  --glimmer-surface-card-hover: rgba(27, 38, 52, 0.92);
+  --glimmer-surface-active: rgba(90, 189, 232, 0.16);
+  --glimmer-surface-field: rgba(18, 27, 38, 0.86);
+  --glimmer-editor-bg: rgba(14, 21, 30, 0.76);
+  --glimmer-border: rgba(151, 169, 190, 0.17);
+  --glimmer-border-strong: rgba(90, 189, 232, 0.5);
+  --glimmer-shadow: 0 16px 42px rgba(0, 0, 0, 0.32);
+  --glimmer-shadow-soft: 0 8px 22px rgba(0, 0, 0, 0.24);
+  --glimmer-danger-surface: rgba(91, 30, 35, 0.62);
+  --glimmer-code-bg: rgba(255, 255, 255, 0.08);
+  --glimmer-empty-view-bg: linear-gradient(180deg, rgba(18, 27, 38, 0.92) 0%, rgba(13, 20, 29, 0.82) 100%);
+  --glimmer-scrollbar: rgba(190, 205, 222, 0.24);
+  --glimmer-scrollbar-hover: rgba(210, 222, 236, 0.4);
+}
+
+:root[data-theme="dark"] .glimmer-card {
+  background: rgba(20, 29, 41, 0.9);
+  border-color: rgba(153, 171, 193, 0.24);
+}
+
+:root[data-theme="dark"] .glimmer-card:hover {
+  background: rgba(29, 41, 56, 0.96);
+}
+
+:root[data-theme="dark"] .glimmer-info-strip {
+  background: rgba(26, 48, 58, 0.86);
+  border-color: rgba(90, 189, 232, 0.34);
+  color: #8ed7f3;
+}
+
+:root[data-theme="dark"] .glimmer-action-icon {
+  background: rgba(90, 189, 232, 0.18);
+  color: #74cff0;
+}
+
+:root[data-theme="dark"] .glimmer-action-icon-success {
+  background: rgba(52, 199, 89, 0.18);
+  color: #72dd8e;
+}
+
+:root[data-theme="dark"] .glimmer-preview-panel {
+  background: rgba(18, 27, 38, 0.9);
+  border-color: rgba(153, 171, 193, 0.22);
+}
+
+/* 基础样式 */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 16px;
+  -webkit-text-size-adjust: 100%;
+  /* Prevent scroll bounce on mobile */
+  overscroll-behavior: none;
+}
+
+body {
+  font-family: var(--glimmer-font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: 'kern' 1;
+  background: var(--glimmer-bg-image);
+  background-attachment: fixed;
+  background-color: var(--glimmer-bg);
+  color: var(--aurora-primary);
+  line-height: 1.5;
+  letter-spacing: -0.016em;
+  min-height: var(--app-height, 100dvh);
+  /* Enable text selection */
+  -webkit-user-select: text !important;
+  user-select: text !important;
+  /* Allow scrolling and text selection, but prevent zoom gestures */
+  touch-action: pan-x pan-y pinch-zoom !important;
+  pointer-events: auto !important;
+}
+
+#root {
+  width: 100vw;
+  /* 跟着 visual viewport 走，弹出键盘时界面整体变矮，见 src/utils/viewportHeight.ts */
+  height: var(--app-height, 100dvh);
+  overflow: hidden;
+  /* Enable text selection */
+  -webkit-user-select: text !important;
+  user-select: text !important;
+  touch-action: pan-x pan-y !important;
+  pointer-events: auto !important;
+}
+
+::selection {
+  background-color: color-mix(in srgb, var(--aurora-accent) 24%, transparent);
+  color: inherit;
+}
+
+:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--aurora-accent) 28%, transparent);
+  border-radius: 12px;
+}
+
+/* Apple-style button reset */
+button {
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.25, 0.1, 0.25, 1);
+}
+
+button:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+/* Apple-style input reset */
+input, textarea, select {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+  transition: all 0.2s cubic-bezier(0.25, 0.1, 0.25, 1);
+}
+
+/* ============================================
+   任务列表 Checkbox 对齐修复
+   ============================================ */
+
+/* 父容器：强制弹性布局 + 垂直居中 */
+.task-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Checkbox：彻底归零 */
+.task-item input[type="checkbox"] {
+  margin: 0 !important;
+  padding: 0;
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: var(--aurora-accent);
+}
+
+/* 文字：统一行高，使用inline-flex代替flex */
+.task-text {
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* TipTap Editor Styles - 治愈森系风 */
+.ProseMirror {
+  outline: none;
+  min-height: 200px;
+  padding: 1.5rem;
+  font-feature-settings: 'kern' 1;
+  letter-spacing: -0.016em;
+  /* Enable better text selection on mobile */
+  -webkit-user-select: text !important;
+  -moz-user-select: text !important;
+  -ms-user-select: text !important;
+  user-select: text !important;
+  -webkit-touch-callout: default;
+  /* Allow text selection and dragging for selection */
+  touch-action: pan-x pan-y !important;
+  /* Ensure proper pointer events */
+  pointer-events: auto !important;
+  color: var(--aurora-primary);
+}
+
+/* Allow text selection in editor content */
+.ProseMirror * {
+  -webkit-user-select: text !important;
+  user-select: text !important;
+  -webkit-touch-callout: default;
+  /* Allow pointer events for text selection */
+  pointer-events: auto !important;
+}
+
+/* Mobile optimizations */
+@media (max-width: 768px) {
+  .ProseMirror {
+    /* Prevent zoom on focus */
+    font-size: 16px;
+  }
+  
+  /* Enable long-press text selection */
+  .ProseMirror * {
+    -webkit-user-select: text;
+    user-select: text;
+    -webkit-touch-callout: default;
+  }
+}
+
+.ProseMirror p {
+  margin: 0.75rem 0;
+  line-height: 1.7;
+}
+
+.ProseMirror h1 {
+  font-size: var(--editor-heading-1-size, 1.85em);
+  font-weight: 700;
+  margin: 1.65rem 0 0.8rem;
+  letter-spacing: -0.025em;
+  color: var(--aurora-primary);
+}
+
+.ProseMirror h2 {
+  font-size: var(--editor-heading-2-size, 1.45em);
+  font-weight: 600;
+  margin: 1.45rem 0 0.7rem;
+  letter-spacing: -0.02em;
+  color: var(--aurora-primary);
+}
+
+.ProseMirror h3 {
+  font-size: var(--editor-heading-3-size, 1.18em);
+  font-weight: 600;
+  margin: 1.2rem 0 0.6rem;
+  letter-spacing: -0.015em;
+  color: var(--aurora-primary);
+}
+
+.ProseMirror h4 {
+  font-size: var(--editor-heading-4-size, 1.08em);
+  font-weight: 600;
+  margin: 1.25rem 0 0.625rem;
+  color: var(--aurora-primary);
+}
+
+.ProseMirror h5 {
+  font-size: var(--editor-heading-5-size, 1em);
+  font-weight: 600;
+  margin: 1rem 0 0.5rem;
+  color: var(--aurora-secondary);
+}
+
+.ProseMirror h6 {
+  font-size: var(--editor-heading-6-size, 0.94em);
+  font-weight: 600;
+  margin: 1rem 0 0.5rem;
+  color: var(--aurora-muted);
+}
+
+.ProseMirror ul,
+.ProseMirror ol {
+  padding-left: 1.5rem;
+  margin: 0.5rem 0;
+}
+
+.ProseMirror ul:not([data-type="taskList"]) {
+  list-style-type: disc;
+}
+
+.ProseMirror ol {
+  list-style-type: decimal;
+}
+
+.ProseMirror ul li,
+.ProseMirror ol li {
+  margin: 0.25rem 0;
+}
+
+.ProseMirror ul ul,
+.ProseMirror ol ul {
+  list-style-type: circle;
+}
+
+.ProseMirror ul ul ul,
+.ProseMirror ol ul ul,
+.ProseMirror ol ol ul {
+  list-style-type: square;
+}
+
+.ProseMirror ol ol {
+  list-style-type: lower-alpha;
+}
+
+.ProseMirror ol ol ol {
+  list-style-type: lower-roman;
+}
+
+.ProseMirror ul[data-type="taskList"] {
+  list-style: none;
+  padding-left: 0;
+}
+
+.ProseMirror ul[data-type="taskList"] li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.ProseMirror ul[data-type="taskList"] li > label {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  margin: 0;
+  padding-top: 0.2rem;
+  user-select: none;
+}
+
+.ProseMirror ul[data-type="taskList"] li > label > span {
+  display: none;
+}
+
+.ProseMirror ul[data-type="taskList"] li > div {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.ProseMirror ul[data-type="taskList"] li > div > p {
+  margin: 0;
+}
+
+.ProseMirror ul[data-type="taskList"] li input[type="checkbox"] {
+  margin: 0;
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: var(--aurora-accent);
+}
+
+.ProseMirror blockquote {
+  border-left: 4px solid var(--aurora-accent);
+  padding-left: 1.25rem;
+  margin: 1rem 0;
+  color: var(--aurora-secondary);
+  font-style: italic;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--aurora-accent) 9%, transparent) 0%, transparent 100%);
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+  border-radius: 0 8px 8px 0;
+}
+
+.ProseMirror code {
+  background-color: var(--glimmer-code-bg);
+  padding: 0.2rem 0.4rem;
+  border-radius: 6px;
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', monospace;
+  font-size: 0.875em;
+  color: #d8463f;
+}
+
+.ProseMirror pre {
+  background: linear-gradient(145deg, #141b25 0%, #202936 100%);
+  color: #eef4fb;
+  padding: 1.25rem;
+  border-radius: 12px;
+  overflow-x: auto;
+  margin: 1rem 0;
+  box-shadow: var(--glimmer-shadow-soft);
+}
+
+.ProseMirror pre code {
+  background: none;
+  color: inherit;
+  padding: 0;
+}
+
+.ProseMirror .tableWrapper {
+  overflow-x: auto;
+  margin: 1rem 0;
+  padding-bottom: 0.25rem;
+}
+
+.ProseMirror table {
+  border-collapse: separate;
+  border-spacing: 0;
+  width: max-content;
+  table-layout: fixed;
+  border: 1px solid var(--glimmer-border);
+  border-radius: 16px;
+  overflow: hidden;
+  background: var(--glimmer-surface-strong);
+  box-shadow: var(--glimmer-shadow-soft);
+}
+
+.ProseMirror table td,
+.ProseMirror table th {
+  position: relative;
+  box-sizing: border-box;
+  min-width: 36px;
+  border-right: 1px solid var(--glimmer-border);
+  border-bottom: 1px solid var(--glimmer-border);
+  padding: 0.16rem 0.3rem;
+  text-align: left;
+  vertical-align: top;
+  background: var(--glimmer-surface-card);
+  transition: background-color 0.18s ease;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.ProseMirror table tr > *:last-child {
+  border-right: none;
+}
+
+.ProseMirror table tbody tr:last-child > * {
+  border-bottom: none;
+}
+
+.ProseMirror table th {
+  background: var(--glimmer-surface-muted);
+  font-weight: 600;
+  color: var(--aurora-primary);
+  padding: 0.18rem 0.34rem;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.ProseMirror table tr:hover td,
+.ProseMirror table tr:hover th {
+  background-color: color-mix(in srgb, var(--aurora-accent) 8%, transparent);
+}
+
+.ProseMirror .column-resize-handle {
+  position: absolute;
+  top: 0;
+  right: -3px;
+  bottom: 0;
+  width: 6px;
+  z-index: 20;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--aurora-accent) 18%, transparent), color-mix(in srgb, var(--aurora-accent) 62%, transparent));
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
+.ProseMirror td:hover .column-resize-handle,
+.ProseMirror th:hover .column-resize-handle,
+.ProseMirror .column-resize-dragging .column-resize-handle {
+  opacity: 1;
+}
+
+.ProseMirror.resize-cursor {
+  cursor: col-resize;
+}
+
+.ProseMirror .selectedCell::after {
+  position: absolute;
+  inset: 0;
+  content: '';
+  z-index: 2;
+  pointer-events: none;
+  background: color-mix(in srgb, var(--aurora-accent) 14%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--aurora-accent) 45%, transparent);
+}
+
+.ProseMirror img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 12px;
+  margin: 1rem 0;
+  box-shadow: var(--glimmer-shadow-soft);
+}
+
+.ProseMirror hr {
+  border: none;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--glimmer-border) 20%, var(--glimmer-border) 80%, transparent);
+  margin: 2rem 0;
+}
+
+.ProseMirror a {
+  color: var(--aurora-accent);
+  text-decoration: none;
+  cursor: pointer;
+  border-bottom: 1px solid color-mix(in srgb, var(--aurora-accent) 35%, transparent);
+  transition: all 0.2s ease;
+}
+
+.ProseMirror a:hover {
+  color: var(--aurora-accent-alt);
+  border-bottom-color: var(--aurora-accent-alt);
+}
+
+/* Scrollbar Styles - Apple-inspired */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--glimmer-scrollbar);
+  border-radius: 5px;
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--glimmer-scrollbar-hover);
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+
+/* Hide scrollbar when not hovering (Apple-style) */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Glass morphism effects */
+.glass {
+  background: var(--glimmer-surface);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+.glass-dark {
+  background: var(--glimmer-surface-strong);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+/* Apple-style surface backgrounds */
+.surface-primary {
+  background-color: var(--glimmer-surface-strong);
+}
+
+.surface-secondary {
+  background-color: var(--glimmer-surface-muted);
+}
+
+.surface-elevated {
+  background-color: var(--glimmer-surface-strong);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+/* Agent 悬浮窗用的实心底色：半透明会把下面的日记透上来 */
+:root { --glimmer-solid: #ffffff; }
+:root[data-theme="dark"] { --glimmer-solid: #11161d; }
+
+.glimmer-panel {
+  background: var(--glimmer-surface);
+  border-color: var(--glimmer-border);
+}
+
+.glimmer-panel-header {
+  background: var(--glimmer-surface-header);
+  border-color: var(--glimmer-border);
+}
+
+.glimmer-field {
+  background: var(--glimmer-surface-field);
+  border: 1px solid var(--glimmer-border);
+  color: var(--aurora-primary);
+}
+
+.glimmer-field::placeholder {
+  color: var(--aurora-muted);
+}
+
+.glimmer-card {
+  background: var(--glimmer-surface-card);
+  border-color: var(--glimmer-border);
+}
+
+.glimmer-card:hover {
+  background: var(--glimmer-surface-card-hover);
+  box-shadow: var(--glimmer-shadow-soft);
+}
+
+.glimmer-card-active {
+  background: var(--glimmer-surface-active);
+  border-color: var(--glimmer-border-strong);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--aurora-accent) 12%, transparent);
+}
+
+.glimmer-system-card {
+  background: color-mix(in srgb, var(--glimmer-surface-card) 94%, var(--aurora-accent) 6%);
+  border-color: var(--glimmer-border);
+  box-shadow: inset 3px 0 0 color-mix(in srgb, var(--aurora-accent) 42%, transparent);
+}
+
+.glimmer-system-card:hover {
+  background: color-mix(in srgb, var(--glimmer-surface-card-hover) 96%, var(--aurora-accent) 4%);
+  box-shadow:
+    inset 3px 0 0 color-mix(in srgb, var(--aurora-accent) 48%, transparent),
+    var(--glimmer-shadow-soft);
+}
+
+.glimmer-system-badge {
+  background: color-mix(in srgb, var(--glimmer-surface-muted) 90%, var(--aurora-accent) 10%);
+  border-color: color-mix(in srgb, var(--glimmer-border) 84%, var(--aurora-accent) 16%);
+  color: var(--aurora-secondary);
+}
+
+.glimmer-info-strip {
+  background: color-mix(in srgb, var(--aurora-accent) 12%, var(--glimmer-surface-card));
+  border: 1px solid color-mix(in srgb, var(--aurora-accent) 18%, var(--glimmer-border));
+  color: var(--aurora-accent);
+}
+
+.glimmer-popover {
+  background: var(--glimmer-surface-strong);
+  border-color: var(--glimmer-border);
+  color: var(--aurora-primary);
+}
+
+.glimmer-action-row {
+  background: transparent;
+  color: var(--aurora-primary);
+  border: 1px solid transparent;
+}
+
+.glimmer-action-row:hover {
+  background: var(--glimmer-surface-card-hover);
+  border-color: var(--glimmer-border);
+}
+
+.glimmer-action-icon {
+  background: color-mix(in srgb, var(--aurora-accent) 14%, transparent);
+  color: var(--aurora-accent);
+}
+
+.glimmer-action-icon-success {
+  background: color-mix(in srgb, #34c759 16%, transparent);
+  color: #34c759;
+}
+
+.glimmer-preview-panel {
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--aurora-accent) 7%, var(--glimmer-surface-card)) 0%, var(--glimmer-surface-card) 100%);
+  border-color: var(--glimmer-border);
+}
+
+.glimmer-icon-button {
+  color: var(--aurora-secondary);
+}
+
+.glimmer-icon-button:hover {
+  background: color-mix(in srgb, var(--aurora-accent) 12%, transparent);
+  color: var(--aurora-accent);
+}
+
+.glimmer-accent-button {
+  background: linear-gradient(135deg, var(--aurora-accent) 0%, var(--aurora-accent-alt) 100%);
+  color: #ffffff;
+}
+
+.glimmer-empty-view {
+  background: var(--glimmer-empty-view-bg);
+}
+
+/* Text he coloured in light mode keeps a plain hex inline, which exports read.
+   Dark mode swaps in the lightened twin stored next to it. */
+:root[data-theme="dark"] .ProseMirror [style*="--dark-ink"] {
+  color: var(--dark-ink) !important;
+}
+
+:root[data-theme="dark"] .text-primary-900,
+:root[data-theme="dark"] .text-primary-800,
+:root[data-theme="dark"] .text-slate-900,
+:root[data-theme="dark"] .text-slate-800,
+:root[data-theme="dark"] .text-gray-900,
+:root[data-theme="dark"] .text-gray-800,
+:root[data-theme="dark"] .text-sky-900,
+:root[data-theme="dark"] .text-emerald-900 {
+  color: var(--aurora-primary) !important;
+}
+
+:root[data-theme="dark"] .text-primary-700,
+:root[data-theme="dark"] .text-primary-600,
+:root[data-theme="dark"] .text-slate-700,
+:root[data-theme="dark"] .text-slate-600,
+:root[data-theme="dark"] .text-slate-300,
+:root[data-theme="dark"] .text-gray-700,
+:root[data-theme="dark"] .text-gray-600,
+:root[data-theme="dark"] .text-blue-700,
+:root[data-theme="dark"] .text-green-700,
+:root[data-theme="dark"] .text-emerald-700,
+:root[data-theme="dark"] .text-emerald-600 {
+  color: var(--aurora-secondary) !important;
+}
+
+:root[data-theme="dark"] .text-primary-500,
+:root[data-theme="dark"] .text-primary-400,
+:root[data-theme="dark"] .text-slate-500,
+:root[data-theme="dark"] .text-slate-400,
+:root[data-theme="dark"] .text-gray-500,
+:root[data-theme="dark"] .text-gray-400,
+:root[data-theme="dark"] .text-gray-300 {
+  color: var(--aurora-muted) !important;
+}
+
+:root[data-theme="dark"] .border-slate-200,
+:root[data-theme="dark"] .border-slate-200\/80,
+:root[data-theme="dark"] .border-slate-200\/70,
+:root[data-theme="dark"] .border-slate-200\/60,
+:root[data-theme="dark"] .border-primary-100,
+:root[data-theme="dark"] .border-primary-200,
+:root[data-theme="dark"] .border-gray-200,
+:root[data-theme="dark"] .border-gray-300,
+:root[data-theme="dark"] .border-blue-200,
+:root[data-theme="dark"] .border-green-200,
+:root[data-theme="dark"] .border-sky-100,
+:root[data-theme="dark"] .border-sky-200,
+:root[data-theme="dark"] .border-sky-200\/90,
+:root[data-theme="dark"] .border-amber-200,
+:root[data-theme="dark"] .border-red-100,
+:root[data-theme="dark"] .border-red-200,
+:root[data-theme="dark"] .border-white\/50,
+:root[data-theme="dark"] .border-white\/30,
+:root[data-theme="dark"] .border-white\/70 {
+  border-color: var(--glimmer-border) !important;
+}
+
+:root[data-theme="dark"] .bg-white,
+:root[data-theme="dark"] .bg-white\/55,
+:root[data-theme="dark"] .bg-white\/60,
+:root[data-theme="dark"] .bg-white\/70,
+:root[data-theme="dark"] .bg-white\/72,
+:root[data-theme="dark"] .bg-white\/75,
+:root[data-theme="dark"] .bg-white\/80,
+:root[data-theme="dark"] .bg-white\/85,
+:root[data-theme="dark"] .bg-white\/88,
+:root[data-theme="dark"] .bg-white\/90,
+:root[data-theme="dark"] .bg-white\/92,
+:root[data-theme="dark"] .bg-white\/95,
+:root[data-theme="dark"] .bg-primary-50,
+:root[data-theme="dark"] .bg-primary-50\/80,
+:root[data-theme="dark"] .bg-primary-100,
+:root[data-theme="dark"] .bg-slate-50,
+:root[data-theme="dark"] .bg-slate-100,
+:root[data-theme="dark"] .bg-gray-50,
+:root[data-theme="dark"] .bg-gray-100,
+:root[data-theme="dark"] .bg-blue-50,
+:root[data-theme="dark"] .bg-green-50,
+:root[data-theme="dark"] .bg-amber-50,
+:root[data-theme="dark"] .bg-amber-50\/80 {
+  background-color: var(--glimmer-surface-muted) !important;
+}
+
+:root[data-theme="dark"] .bg-sky-50,
+:root[data-theme="dark"] .bg-sky-50\/60,
+:root[data-theme="dark"] .bg-sky-50\/70,
+:root[data-theme="dark"] .bg-sky-50\/80,
+:root[data-theme="dark"] .bg-sky-50\/90,
+:root[data-theme="dark"] .bg-sky-100 {
+  background-color: color-mix(in srgb, var(--aurora-accent) 14%, transparent) !important;
+}
+
+:root[data-theme="dark"] .from-white,
+:root[data-theme="dark"] .from-sky-50\/90 {
+  --tw-gradient-from: var(--glimmer-surface-card) var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: rgb(21 30 42 / 0) var(--tw-gradient-to-position) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+
+:root[data-theme="dark"] .via-white,
+:root[data-theme="dark"] .via-sky-50\/35 {
+  --tw-gradient-to: rgb(21 30 42 / 0) var(--tw-gradient-to-position) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--glimmer-surface-card-hover) var(--tw-gradient-via-position), var(--tw-gradient-to) !important;
+}
+
+:root[data-theme="dark"] .to-white,
+:root[data-theme="dark"] .to-white\/80 {
+  --tw-gradient-to: var(--glimmer-surface-card) var(--tw-gradient-to-position) !important;
+}
+
+:root[data-theme="dark"] .text-sky-700,
+:root[data-theme="dark"] .text-sky-600,
+:root[data-theme="dark"] .text-sky-500,
+:root[data-theme="dark"] .text-sky-400,
+:root[data-theme="dark"] .text-sky-900,
+:root[data-theme="dark"] .text-blue-600,
+:root[data-theme="dark"] .text-accent-500 {
+  color: var(--aurora-accent) !important;
+}
+
+:root[data-theme="dark"] .text-amber-700,
+:root[data-theme="dark"] .text-amber-600 {
+  color: #f0bd74 !important;
+}
+
+:root[data-theme="dark"] .bg-red-50,
+:root[data-theme="dark"] .bg-red-100,
+:root[data-theme="dark"] .bg-red-100\/50 {
+  background-color: var(--glimmer-danger-surface) !important;
+}
+
+:root[data-theme="dark"] .hover\:bg-white:hover,
+:root[data-theme="dark"] .hover\:bg-white\/50:hover,
+:root[data-theme="dark"] .hover\:bg-white\/75:hover,
+:root[data-theme="dark"] .hover\:bg-white\/88:hover,
+:root[data-theme="dark"] .hover\:bg-gray-50:hover,
+:root[data-theme="dark"] .hover\:bg-gray-100:hover,
+:root[data-theme="dark"] .hover\:bg-primary-50:hover,
+:root[data-theme="dark"] .hover\:bg-primary-100:hover,
+:root[data-theme="dark"] .hover\:bg-slate-50:hover,
+:root[data-theme="dark"] .hover\:bg-sky-50:hover,
+:root[data-theme="dark"] .hover\:bg-sky-100:hover,
+:root[data-theme="dark"] .hover\:bg-blue-50:hover,
+:root[data-theme="dark"] .hover\:bg-blue-100:hover,
+:root[data-theme="dark"] .hover\:bg-green-50:hover,
+:root[data-theme="dark"] .hover\:bg-green-100:hover {
+  background-color: var(--glimmer-surface-card-hover) !important;
+}

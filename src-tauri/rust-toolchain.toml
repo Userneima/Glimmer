@@ -1,0 +1,6 @@
+# Xcode 27.1 linker + rustc 1.95 builds proc-macro dylibs that dyld refuses to load
+# when MACOSX_DEPLOYMENT_TARGET is set (Tauri sets it from minimumSystemVersion).
+# 1.99.1 builds them correctly (verified 2026-11-03).
+[toolchain]
+channel = "1.99.1"
+profile = "minimal"

@@ -1,0 +1,382 @@
+import React, { useState, useMemo } from 'react';
+import { Folder as FolderIcon, FolderPlus, Edit2, Trash2 } from 'lucide-react';
+import type { Folder } from '../../types';
+import { Button } from '../UI/Button';
+import { Modal } from '../UI/Modal';
+import { Input } from '../UI/Input';
+import { t } from '../../i18n';
+import { showToast } from '../../utils/toast';
+
+interface FolderTreeProps {
+  folders: Folder[];
+  onCreateFolder: (name: string, parentId: string | null) => void;
+  onUpdateFolder: (id: string, name: string) => void;
+  onDeleteFolder: (id: string) => void;
+  onMoveDiary: (diaryId: string, folderId: string | null) => void;
+  canMoveDiary?: (diaryId: string) => boolean;
+  selectedFolderId: string | null;
+  trashCount: number;
+  onOpenTrash: () => void;
+  onSelectFolder: (id: string | null) => void;
+}
+
+export const FolderTree: React.FC<FolderTreeProps> = ({
+  folders,
+  onCreateFolder,
+  onUpdateFolder,
+  onDeleteFolder,
+  onMoveDiary,
+  canMoveDiary,
+  selectedFolderId,
+  trashCount,
+  onOpenTrash,
+  onSelectFolder,
+}) => {
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [newFolderName, setNewFolderName] = useState('');
+  const [createParentId, setCreateParentId] = useState<string | null>(null);
+  const [editingFolder, setEditingFolder] = useState<Folder | null>(null);
+  const [deletingFolderId, setDeletingFolderId] = useState<string | null>(null);
+  const [dragOverTarget, setDragOverTarget] = useState<string | null>(null);
+
+  const getDraggedDiaryId = (e: React.DragEvent): string | null => {
+    const diaryId = e.dataTransfer.getData('application/x-diary-id');
+    return diaryId || null;
+  };
+
+  const handleDropToFolder = (e: React.DragEvent, folderId: string | null) => {
+    e.preventDefault();
+    const diaryId = getDraggedDiaryId(e);
+    if (!diaryId) {
+      setDragOverTarget(null);
+      return;
+    }
+    if (canMoveDiary && !canMoveDiary(diaryId)) {
+      setDragOverTarget(null);
+      return;
+    }
+    onMoveDiary(diaryId, folderId);
+    showToast(t('Diary moved successfully'), 'success');
+    setDragOverTarget(null);
+  };
+
+  const handleCreateFolder = () => {
+    if (newFolderName.trim()) {
+      onCreateFolder(newFolderName.trim(), createParentId);
+      setNewFolderName('');
+      setCreateParentId(null);
+      setIsCreateModalOpen(false);
+    }
+  };
+
+  const handleEditFolder = () => {
+    if (editingFolder && newFolderName.trim()) {
+      onUpdateFolder(editingFolder.id, newFolderName.trim());
+      setNewFolderName('');
+      setEditingFolder(null);
+      setIsEditModalOpen(false);
+    }
+  };
+
+  const handleDeleteFolder = () => {
+    if (deletingFolderId) {
+      onDeleteFolder(deletingFolderId);
+      setDeletingFolderId(null);
+      setIsDeleteModalOpen(false);
+    }
+  };
+
+  const openEditModal = (folder: Folder) => {
+    setEditingFolder(folder);
+    setNewFolderName(folder.name);
+    setIsEditModalOpen(true);
+  };
+
+  const openDeleteModal = (folderId: string) => {
+    setDeletingFolderId(folderId);
+    setIsDeleteModalOpen(true);
+  };
+
+  const openCreateModal = (parentId: string | null = null) => {
+    setCreateParentId(parentId);
+    setNewFolderName('');
+    setIsCreateModalOpen(true);
+  };
+
+  const childrenByParent = useMemo(() => {
+    const map = new Map<string | null, Folder[]>();
+    folders.forEach((folder) => {
+      const key = folder.parentId ?? null;
+      map.set(key, [...(map.get(key) ?? []), folder]);
+    });
+    map.forEach((items) => {
+      items.sort((a, b) => {
+        const createdAtDiff = b.createdAt - a.createdAt;
+        if (createdAtDiff !== 0) return createdAtDiff;
+        return b.id.localeCompare(a.id);
+      });
+    });
+    return map;
+  }, [folders]);
+
+  const rootFolders = useMemo(() => [...folders.filter(f => !f.parentId)].sort((a, b) => {
+      const createdAtDiff = b.createdAt - a.createdAt;
+      if (createdAtDiff !== 0) return createdAtDiff;
+      return b.id.localeCompare(a.id);
+  }), [folders]);
+
+  const renderFolderNode = (folder: Folder, depth = 0): React.ReactNode => {
+    const childFolders = childrenByParent.get(folder.id) ?? [];
+    const isSelected = selectedFolderId === folder.id;
+    const isDragTarget = dragOverTarget === folder.id;
+
+    return (
+      <div key={folder.id} className="mb-1.5">
+        <div
+          className={`flex items-center justify-between px-3 py-2.5 rounded-xl cursor-pointer transition-colors duration-200 group border ${
+            isDragTarget ? 'shadow-sm' : ''
+          }`}
+          style={{
+            marginLeft: depth ? `${depth * 14}px` : undefined,
+            backgroundColor: isSelected ? 'var(--glimmer-surface-active)' : 'var(--glimmer-surface-card)',
+            color: isSelected ? 'var(--aurora-accent)' : 'var(--aurora-primary)',
+            borderColor: isSelected ? 'var(--glimmer-border-strong)' : 'var(--glimmer-border)'
+          }}
+          onMouseEnter={(e) => {
+            if (!isSelected) {
+              e.currentTarget.style.backgroundColor = 'var(--glimmer-surface-card-hover)';
+            }
+          }}
+          onMouseLeave={(e) => {
+            if (!isSelected) {
+              e.currentTarget.style.backgroundColor = 'var(--glimmer-surface-card)';
+            }
+          }}
+          onDragOver={(e) => {
+            e.preventDefault();
+            setDragOverTarget(folder.id);
+          }}
+          onDragLeave={() => setDragOverTarget(null)}
+          onDrop={(e) => handleDropToFolder(e, folder.id)}
+        >
+          <div
+            className="flex min-w-0 flex-1 items-center"
+            onClick={() => onSelectFolder(folder.id)}
+          >
+            <FolderIcon size={16} className="mr-2 shrink-0" />
+            <span className="truncate text-sm font-medium">{folder.name}</span>
+          </div>
+          {/* 触屏没有悬停，按钮一直显示；有鼠标时悬停才出现。 */}
+          <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 [@media(hover:none)]:opacity-100">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                openCreateModal(folder.id);
+              }}
+              className="p-1.5 hover:bg-white/50 rounded-lg transition-all duration-200"
+              title={t('New Subfolder')}
+            >
+              <FolderPlus size={14} />
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                openEditModal(folder);
+              }}
+              className="p-1.5 hover:bg-white/50 rounded-lg transition-all duration-200"
+              title={t('Edit')}
+            >
+              <Edit2 size={14} />
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                openDeleteModal(folder.id);
+              }}
+              className="p-1.5 hover:bg-red-100/50 text-red-500 rounded-lg transition-all duration-200"
+              title={t('Delete')}
+            >
+              <Trash2 size={14} />
+            </button>
+          </div>
+        </div>
+        {childFolders.length > 0 && (
+          <div className="mt-1">
+            {childFolders.map((child) => renderFolderNode(child, depth + 1))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div className="glimmer-panel h-full flex flex-col">
+      <div className="glimmer-panel-header p-4 border-b">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-lg font-semibold" style={{ color: 'var(--aurora-primary)' }}>{t('Folders')}</h2>
+          <button
+            onClick={() => openCreateModal(null)}
+            className="p-1.5 rounded-xl transition-all duration-200"
+            style={{ color: 'var(--aurora-accent)' }}
+            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--glimmer-surface-active)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+            title={t('New Folder')}
+          >
+            <FolderPlus size={18} />
+          </button>
+        </div>
+        {/* 全部日记按钮 - 毛玻璃卡片 */}
+        <button
+          onClick={() => onSelectFolder(null)}
+          className={`w-full text-left px-3 py-2.5 rounded-xl transition-colors duration-200 border ${
+            dragOverTarget === 'all' ? 'shadow-sm' : ''
+          }`}
+          style={{
+            backgroundColor: selectedFolderId === null ? 'var(--glimmer-surface-active)' : 'var(--glimmer-surface-card)',
+            color: selectedFolderId === null ? 'var(--aurora-accent)' : 'var(--aurora-primary)',
+            borderColor: selectedFolderId === null ? 'var(--glimmer-border-strong)' : 'var(--glimmer-border)'
+          }}
+          onMouseEnter={(e) => {
+            if (selectedFolderId !== null) {
+              e.currentTarget.style.backgroundColor = 'var(--glimmer-surface-card-hover)';
+            }
+          }}
+          onMouseLeave={(e) => {
+            if (selectedFolderId !== null) {
+              e.currentTarget.style.backgroundColor = 'var(--glimmer-surface-card)';
+            }
+          }}
+          onDragOver={(e) => {
+            e.preventDefault();
+            setDragOverTarget('all');
+          }}
+          onDragLeave={() => setDragOverTarget(null)}
+          onDrop={(e) => handleDropToFolder(e, null)}
+        >
+          {t('All Diaries')}
+        </button>
+      </div>
+
+      {/* 文件夹列表区 - 毛玻璃风 */}
+      <div className="flex-1 overflow-y-auto p-3">
+        {rootFolders.map(folder => renderFolderNode(folder))}
+      </div>
+
+      <div className="p-3 pt-0">
+        <button
+          onClick={onOpenTrash}
+          className="flex w-full items-center gap-2 rounded-xl border px-3 py-2 text-left text-sm transition-colors duration-200"
+          style={{
+            borderColor: 'var(--glimmer-border)',
+            background: 'var(--glimmer-surface-card)',
+            color: 'var(--aurora-muted)',
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--glimmer-surface-card-hover)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'var(--glimmer-surface-card)'; }}
+        >
+          <Trash2 size={15} strokeWidth={1.75} />
+          <span className="flex-1">{t('Trash')}</span>
+          {trashCount > 0 ? <span className="text-xs">{trashCount}</span> : null}
+        </button>
+      </div>
+
+      <Modal
+        isOpen={isCreateModalOpen}
+        onClose={() => {
+          setIsCreateModalOpen(false);
+          setCreateParentId(null);
+          setNewFolderName('');
+        }}
+        title={createParentId ? t('Create Subfolder') : t('Create New Folder')}
+      >
+        <Input
+          value={newFolderName}
+          onChange={(e) => setNewFolderName(e.target.value)}
+          placeholder={t('Folder name')}
+          onKeyPress={(e) => e.key === 'Enter' && handleCreateFolder()}
+          autoFocus
+        />
+        <div className="flex gap-2 mt-4">
+          <Button onClick={handleCreateFolder} className="flex-1">
+            {t('Create')}
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={() => {
+              setIsCreateModalOpen(false);
+              setCreateParentId(null);
+              setNewFolderName('');
+            }}
+            className="flex-1"
+          >
+            {t('Cancel')}
+          </Button>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={isEditModalOpen}
+        onClose={() => {
+          setIsEditModalOpen(false);
+          setEditingFolder(null);
+          setNewFolderName('');
+        }}
+        title={t('Rename Folder')}
+      >
+        <Input
+          value={newFolderName}
+          onChange={(e) => setNewFolderName(e.target.value)}
+          placeholder={t('Folder name')}
+          onKeyPress={(e) => e.key === 'Enter' && handleEditFolder()}
+          autoFocus
+        />
+        <div className="flex gap-2 mt-4">
+          <Button onClick={handleEditFolder} className="flex-1">
+            {t('Save')}
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={() => {
+              setIsEditModalOpen(false);
+              setEditingFolder(null);
+              setNewFolderName('');
+            }}
+            className="flex-1"
+          >
+            {t('Cancel')}
+          </Button>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={isDeleteModalOpen}
+        onClose={() => {
+          setIsDeleteModalOpen(false);
+          setDeletingFolderId(null);
+        }}
+        title={t('Delete Folder')}
+      >
+        <p className="text-slate-600 mb-4 leading-relaxed">
+          {t('Are you sure you want to delete this folder? Subfolders will also be deleted, and diaries in them will be moved to "All Diaries".')}
+        </p>
+        <div className="flex gap-2">
+          <Button variant="danger" onClick={handleDeleteFolder} className="flex-1">
+            {t('Delete')}
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={() => {
+              setIsDeleteModalOpen(false);
+              setDeletingFolderId(null);
+            }}
+            className="flex-1"
+          >
+            {t('Cancel')}
+          </Button>
+        </div>
+      </Modal>
+    </div>
+  );
+};
