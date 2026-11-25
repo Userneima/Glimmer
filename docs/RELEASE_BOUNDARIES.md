@@ -27,6 +27,8 @@ Vercel 配置写在 `vercel.json`，当前只运行 `build:web`，输出目录�
 
 云同步靠 Vercel 项目里的两个 Production 环境变量 `VITE_SUPABASE_URL`、`VITE_SUPABASE_ANON_KEY`（值与本机 `.env` 相同）。缺了它们，打包出来的网页没有云同步配置、无法登录。改了这两个值要重新部署才生效。
 
+这个 Supabase 项目关闭了公开注册（2026-11-25）：网页版和桌面安装包里都带着公开的 anon key，开着注册的话任何人都能绕开界面注册、往项目里存数据。已有账号照常登录；要加新账号，在 Supabase 后台 Authentication → Users 手动建。
+
 `.vercelignore` 会排除：
 
 - `src-tauri/`
