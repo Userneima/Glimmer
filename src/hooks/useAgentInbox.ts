@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import type { Diary } from '../types';
-import { canUndoAgentChange, decideAgentChange, hashContent, parseAgentChange } from '../utils/agentChanges';
+import { canUndoAgentChange, decideAgentChange, decideAgentPlan, hashContent, insertTodayPlan, parseAgentChange } from '../utils/agentChanges';
 import { isTauriRuntime } from '../utils/desktopStore';
 import { markdownToHtml } from '../utils/markdown';
 import { showToast } from '../utils/toast';
@@ -57,6 +57,44 @@ export const useAgentInbox = (
             void writeLog({ file: file.fileName, result: 'rejected', reason: '改动单格式不对' });
             continue;
           }
+          if (change.kind === 'add_today_plan') {
+            const now = new Date();
+            const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+            const planDecision = decideAgentPlan(change, diariesRef.current, openRef.current, today);
+            if (planDecision.kind === 'wait') continue; // 等他建好那天的日记或切走，不弹提示，免得一早上反复打扰
+            if (planDecision.kind === 'reject') {
+              await finish(file.fileName, file.content, { result: 'rejected', reason: planDecision.reason });
+              void writeLog({ changeId: change.id, day: change.day, summary: change.summary, result: 'rejected', reason: planDecision.reason });
+              continue;
+            }
+            const planTarget = diariesRef.current.find((diary) => diary.id === planDecision.diaryId)!;
+            const planPrevious = planTarget.content;
+            const { html: planNext, added } = insertTodayPlan(planPrevious, change.items);
+            if (added.length === 0) {
+              await finish(file.fileName, file.content, { result: 'rejected', reason: '这几条已经在那篇日记里了' });
+              void writeLog({ changeId: change.id, diaryId: planTarget.id, summary: change.summary, result: 'rejected', reason: '这几条已经在那篇日记里了' });
+              continue;
+            }
+            updateRef.current(planTarget.id, { content: planNext });
+            await finish(file.fileName, file.content, { result: 'applied', previousContent: planPrevious, appliedContent: planNext, added });
+            void writeLog({ changeId: change.id, diaryId: planTarget.id, summary: change.summary, result: 'applied', added: added.length });
+            const planTitle = planTarget.title || '今天的日记';
+            showToast(`Claude 往《${planTitle}》的今日计划加了 ${added.length} 条`, 'success', 15000, {
+              label: '撤销',
+              onClick: () => {
+                const current = diariesRef.current.find((diary) => diary.id === planTarget.id);
+                if (!canUndoAgentChange(current, planNext)) {
+                  showToast('这篇之后又改过，撤销会盖掉新内容，没有撤销', 'info', 5000);
+                  return;
+                }
+                updateRef.current(planTarget.id, { content: planPrevious });
+                void writeLog({ changeId: change.id, diaryId: planTarget.id, result: 'undone' });
+                showToast(`已撤销 Claude 加进《${planTitle}》的计划`, 'success');
+              },
+            });
+            continue;
+          }
+
           const target = diariesRef.current.find((diary) => diary.id === change.diaryId);
           const targetHash = target ? await hashContent(target.content) : null;
           const decision = decideAgentChange(change, diariesRef.current, openRef.current, targetHash);

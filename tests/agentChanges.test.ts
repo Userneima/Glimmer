@@ -6,7 +6,9 @@ import {
   AGENT_EDITABLE_DIARY_IDS,
   canUndoAgentChange,
   decideAgentChange,
+  decideAgentPlan,
   hashContent,
+  insertTodayPlan,
   parseAgentChange,
 } from '../src/utils/agentChanges.ts';
 
@@ -74,4 +76,69 @@ test('哈希和 Node 自带的 sha256 一致，脚本和 App 算出来的对得�
   const { createHash } = await import('node:crypto');
   const html = '<h2>长期任务</h2><ul><li><p>张和</p></li></ul>';
   assert.equal(await hashContent(html), createHash('sha256').update(html, 'utf8').digest('hex'));
+});
+
+// ── 往当天日记的「今日计划」加待办 ──
+
+const plan = (overrides: Record<string, unknown> = {}) =>
+  parseAgentChange(JSON.stringify({
+    id: 'p1',
+    kind: 'add_today_plan',
+    day: '2026-11-27',
+    items: ['学第 5 节', '约访谈'],
+    summary: '今天建议做',
+    ...overrides,
+  }));
+
+const day27 = { id: 'd27', title: '20261127-周五', createdAt: new Date(2026, 10, 27, 9).getTime() };
+const day26 = { id: 'd26', title: '20261126-助教', createdAt: new Date(2026, 10, 26, 9).getTime() };
+
+test('计划单格式：没有条目或日期不对就不认', () => {
+  assert.equal(plan({ items: [] }), null);
+  assert.equal(plan({ items: ['  '] }), null);
+  assert.equal(plan({ day: '11-27' }), null);
+  assert.equal(plan()!.kind, 'add_today_plan');
+});
+
+test('那天的日记还没建：等，不拒绝', () => {
+  assert.equal(decideAgentPlan(plan() as never, [day26], null, '2026-11-27').kind, 'wait');
+});
+
+test('建好了且没开着：加到按标题日期认出的那一篇', () => {
+  assert.deepEqual(decideAgentPlan(plan() as never, [day26, day27], null, '2026-11-27'), { kind: 'apply', diaryId: 'd27' });
+});
+
+test('标题日期是 26 号、27 号凌晨才建的补写：不算 27 号', () => {
+  const backfill = { id: 'b', title: '20261126-补写', createdAt: new Date(2026, 10, 27, 1).getTime() };
+  assert.equal(decideAgentPlan(plan() as never, [backfill], null, '2026-11-27').kind, 'wait');
+});
+
+test('长期任务和模板不算那天的日记', () => {
+  const longTermToday = { id: LONG_TERM, title: '长期任务', createdAt: new Date(2026, 10, 27, 9).getTime() };
+  assert.equal(decideAgentPlan(plan() as never, [longTermToday], null, '2026-11-27').kind, 'wait');
+});
+
+test('那篇正开着：等；过了那天：作废', () => {
+  assert.equal(decideAgentPlan(plan() as never, [day27], 'd27', '2026-11-27').kind, 'wait');
+  assert.equal(decideAgentPlan(plan() as never, [day27], null, '2026-11-28').kind, 'reject');
+});
+
+test('插在「今日计划」标题正下方，他原有的条目留在后面', () => {
+  const content = '<h2>流水账</h2><p>写了点</p><h2>今日计划</h2><ul data-type="taskList"><li data-type="taskItem" data-checked="true"><label><input type="checkbox" checked="checked"><span></span></label><div><p>他自己的</p></div></li></ul>';
+  const { html, added } = insertTodayPlan(content, ['学第 5 节']);
+  assert.deepEqual(added, ['学第 5 节']);
+  assert.ok(html.startsWith('<h2>流水账</h2><p>写了点</p><h2>今日计划</h2><ul data-type="taskList"><li data-type="taskItem" data-checked="false">'));
+  assert.ok(html.indexOf('学第 5 节') < html.indexOf('他自己的'));
+});
+
+test('已经有的条目不重复加；全都有就什么都不改', () => {
+  const content = '<h2>今日计划</h2><ul><li><p>学第 5 节</p></li></ul>';
+  assert.deepEqual(insertTodayPlan(content, ['学第 5 节', '约访谈']).added, ['约访谈']);
+  assert.equal(insertTodayPlan(content, ['学第5节']).html, content);
+});
+
+test('没有「今日计划」标题就在末尾补一节；尖括号转义', () => {
+  const { html } = insertTodayPlan('<p>只有正文</p>', ['看 <a> 标签']);
+  assert.ok(html.startsWith('<p>只有正文</p><h2>今日计划</h2>'));
+  assert.ok(html.includes('看 &lt;a&gt; 标签'));
 });

@@ -7,6 +7,9 @@
 //   node scripts/agent-change.mjs submit --base <版本号> --markdown-file <文件> --summary "<一句话>" [--diary <id>]
 //       放一张改动单，然后最多等 60 秒，打印 Glimmer 的处理结果。
 //       把正文恢复成某一版原样时，用 --html-file 代替 --markdown-file（比如从 done/ 里取出的 previousContent）。
+//   node scripts/agent-change.mjs plan --day <YYYY-MM-DD> --items-file <文件> --summary "<一句话>"
+//       往那天日记的「今日计划」最前面加几条待办（文件里一行一条）。那天的日记还没建时单子留在收件箱，
+//       他建好、且没开着那篇时执行；过了那天作废。放下单子就返回，不等结果，之后用 status 查。
 //   node scripts/agent-change.mjs status <改动单 id>
 //       查一张单子的处理结果。
 //
@@ -97,10 +100,25 @@ if (command === 'read') {
     setTimeout(poll, 1000);
   };
   poll();
+} else if (command === 'plan') {
+  const day = flag('day');
+  const itemsFile = flag('items-file');
+  const summary = flag('summary');
+  if (!day || !/^\d{4}-\d{2}-\d{2}$/.test(day) || !itemsFile || !summary) {
+    fail('用法：plan --day <YYYY-MM-DD> --items-file <文件> --summary "<一句话>"');
+  }
+  const items = readFileSync(itemsFile, 'utf8').split('\n').map((line) => line.trim()).filter(Boolean);
+  if (items.length === 0) fail('条目文件是空的');
+  const changeId = `${Date.now()}-${randomUUID().slice(0, 8)}`;
+  mkdirSync(INBOX, { recursive: true });
+  const temp = join(INBOX, `${changeId}.json.tmp`);
+  writeFileSync(temp, JSON.stringify({ id: changeId, kind: 'add_today_plan', day, items, summary, createdAt: Date.now() }, null, 2));
+  renameSync(temp, join(INBOX, `${changeId}.json`));
+  console.log(`已放入计划单 ${changeId}（${items.length} 条，${day}）。那天的日记建好、没开着时执行。`);
 } else if (command === 'status') {
   if (!args[1]) fail('用法：status <改动单 id>');
   const result = readResult(args[1]);
   console.log(result ? JSON.stringify(result) : existsSync(join(INBOX, `${args[1]}.json`)) ? '还在收件箱里，没处理' : '找不到这张单子');
 } else {
-  fail('用法见文件开头的注释：read / submit / status');
+  fail('用法见文件开头的注释：read / submit / plan / status');
 }

@@ -54,6 +54,7 @@ Glimmer 现在已经不是早期 demo，而是一个本地优先、可选接入 
 - 核对规则在 `src/utils/agentChanges.ts`，测试在 `tests/agentChanges.test.ts`（`node --test tests/*.test.ts`）：只允许改 `AGENT_EDITABLE_DIARY_IDS` 里的文档，现在只有「长期任务」；单子带着 Claude 读到的那一版正文的 SHA-256，和当前正文对不上（他之后改过）就拒绝；这篇正开着时先等，切到别的日记再执行；新内容为空也拒绝。不用 updatedAt 做版本号：云同步会改写内存里的时间戳，同一版内容也对不上（2026-11-03 实测）。
 - 执行后右上角提示「Claude 改了《…》」，15 秒内可点「撤销」；撤销前核对这篇内容没再变过，变过就不撤，免得盖掉新写的。每次执行、拒绝、撤销记在 `agent-inbox/changes.log`，处理过的单子连同改前全文存在 `agent-inbox/done/`，撤销按钮过期后从那里找回。
 - 2026-11-03 在真实的长期任务上测过：版本过期的单子被拒、Markdown 改动执行、用 `--html-file` 逐字节恢复原文、连续两张单子都执行。「这篇正开着时先等」和点「撤销」还没在桌面版上点过。
+- 另一种单子 `add_today_plan`（`agent-change.mjs plan`，2026-11-27）：往某一天日记的「今日计划」标题正下方插入几条未勾选的待办，不碰正文其他地方，所以不要求版本号，也不受「只能改长期任务」限制。按标题开头的日期认是哪天（`diaryDay`，长期任务和模板不算）；那天的日记还没建、或正开着，就留在收件箱静静等（不弹提示）；过了那天作废；正文里已经有同样文字的条目不重复加，全都有就作废。执行后同样有 15 秒撤销。判断和插入在 `decideAgentPlan`、`insertTodayPlan`，测试同在 `tests/agentChanges.test.ts`。
 - Claude 那边怎么用写在使用者自己的 `glimmer-edit` skill 里，不放在本仓库。
 
 ### Mac 日历（桌面版，2026-09-24）
