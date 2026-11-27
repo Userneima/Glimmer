@@ -18,6 +18,7 @@ import {
   DEFAULT_TEMPLATE_DIARY_CONTENT,
   DEFAULT_TEMPLATE_DIARY_TITLE,
   buildDiaryFromTemplateDiary,
+  removeTodayPlanSection,
 } from '../utils/diaryTemplate';
 import {
   LEGACY_LONG_TERM_MASTER_ID,
@@ -34,6 +35,8 @@ type CreateDiaryOptions = {
   content?: string;
   tags?: string[];
   select?: boolean;
+  /** 补写过去的日子时，模板里的「今日计划」不插进来。 */
+  skipTodayPlan?: boolean;
 };
 
 const CLOUD_PULL_THROTTLE_MS = 60 * 1000;
@@ -302,6 +305,9 @@ export const useDiaries = () => {
       ...(options?.content !== undefined ? { content: options.content } : {}),
       ...(options?.tags !== undefined ? { tags: options.tags } : {}),
     };
+    if (options?.skipTodayPlan) {
+      newDiary.content = removeTodayPlanSection(newDiary.content);
+    }
     storage.addDiary(newDiary);
     setDiaries(prev => [newDiary, ...prev]);
     if (options?.select !== false) {

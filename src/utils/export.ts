@@ -110,7 +110,8 @@ const listToMarkdown = (list: HTMLElement, depth: number): string => {
     .filter((child): child is HTMLElement => child instanceof HTMLElement && child.tagName.toLowerCase() === 'li')
     .map((item, index) => {
       const checked = item.getAttribute('data-checked') === 'true';
-      const marker = isTaskList ? `- [${checked ? 'x' : ' '}] ` : ordered ? `${index + 1}. ` : '- ';
+      const dropped = checked && item.getAttribute('data-state') === 'dropped';
+      const marker = isTaskList ? `- [${dropped ? '-' : checked ? 'x' : ' '}] ` : ordered ? `${index + 1}. ` : '- ';
       const textParts: string[] = [];
       const nested: string[] = [];
       const collect = (node: Node) => {
@@ -350,7 +351,8 @@ export const htmlToDocBlocks = (html: string): DocBlock[] => {
       const clone = item.cloneNode(true) as Element;
       clone.querySelectorAll('ul, ol, label').forEach((node) => node.remove());
       const checked = item.getAttribute('data-checked') === 'true';
-      const marker = isTaskList ? (checked ? '☑ ' : '☐ ') : ordered ? `${index + 1}. ` : '• ';
+      const dropped = checked && item.getAttribute('data-state') === 'dropped';
+      const marker = isTaskList ? (dropped ? '☒ ' : checked ? '☑ ' : '☐ ') : ordered ? `${index + 1}. ` : '• ';
       pushText(`${marker}${clone.textContent ?? ''}`, { indent: depth });
       item.querySelectorAll(':scope > ul, :scope > ol, :scope > div > ul, :scope > div > ol')
         .forEach((nested) => walkList(nested, depth + 1));
@@ -428,6 +430,17 @@ const createDocxBlob = async (diaries: Diary[]): Promise<Blob> => {
 const preprocessHtmlForPdf = (html: string) => {
   let processedContent = html;
 
+  // 打叉的条目属性顺序不固定（可能先有 data-task-id），用前瞻两头确认；必须先于下面「已完成」那条，
+  // 否则会被当成 ☑ 换掉。
+  processedContent = processedContent.replace(
+    /<li\b(?=[^>]*\bdata-checked="true")(?=[^>]*\bdata-state="dropped")[^>]*>[\s\S]*?<input[^>]*>[\s\S]*?<\/label>/g,
+    (match) => {
+      const textMatch = match.match(/<span[^>]*>([\s\S]*?)<\/span>/);
+      const text = textMatch ? textMatch[1] : '';
+      return `<li style="list-style: none; display: flex; align-items: flex-start; margin: 0.5em 0;"><span style="display: inline-block; width: 1.5em; flex-shrink: 0;">☒</span><span style="flex: 1;">${text}</span></li>`;
+    }
+  );
+
   processedContent = processedContent.replace(
     /<li data-checked="true"[^>]*>[\s\S]*?<input[^>]*>[\s\S]*?<\/label>/g,
     (match) => {
@@ -446,6 +459,10 @@ const preprocessHtmlForPdf = (html: string) => {
     }
   );
 
+  processedContent = processedContent.replace(
+    /<li\b(?=[^>]*\bdata-checked="true")(?=[^>]*\bdata-state="dropped")[^>]*>/g,
+    '<li style="list-style: none; display: flex; align-items: flex-start; margin: 0.5em 0;"><span style="display: inline-block; width: 1.5em; flex-shrink: 0;">☒</span><span style="flex: 1;">'
+  );
   processedContent = processedContent.replace(
     /<li data-checked="true"[^>]*>/g,
     '<li style="list-style: none; display: flex; align-items: flex-start; margin: 0.5em 0;"><span style="display: inline-block; width: 1.5em; flex-shrink: 0;">☑</span><span style="flex: 1;">'

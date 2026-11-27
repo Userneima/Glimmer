@@ -1186,6 +1186,7 @@ dependencies = [
  "objc2-event-kit",
  "objc2-foundation",
  "security-framework",
+ "semver",
  "serde",
  "serde_json",
  "tauri",

@@ -14,6 +14,34 @@ export const formatDateForTitle = (timestamp: number): string => {
   return `${year}${month}${day}`;
 };
 
+// 补写日记用：判断两天是不是同一天、把日期输入框的值和当天的中午互转。
+// 用本地时间的年月日，不走 toISOString（那是 UTC，晚上会差一天）。
+export const startOfDay = (timestamp: number): number => {
+  const date = new Date(timestamp);
+  date.setHours(0, 0, 0, 0);
+  return date.getTime();
+};
+
+export const isSameDay = (a: number, b: number): boolean => startOfDay(a) === startOfDay(b);
+
+export const atNoon = (timestamp: number): number => {
+  const date = new Date(timestamp);
+  date.setHours(12, 0, 0, 0);
+  return date.getTime();
+};
+
+export const toDateInputValue = (timestamp: number): string => {
+  const date = new Date(timestamp);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+};
+
+export const parseDateInputValue = (value: string): number | null => {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return null;
+  const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]), 12, 0, 0, 0);
+  return Number.isNaN(date.getTime()) ? null : date.getTime();
+};
+
 export const formatDateTime = (timestamp: number): string => {
   return new Date(timestamp).toLocaleString('zh-CN', {
     year: 'numeric',

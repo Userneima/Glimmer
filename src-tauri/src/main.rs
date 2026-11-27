@@ -2,6 +2,7 @@ mod agent_inbox;
 mod calendar;
 mod credentials;
 mod files;
+mod update_server;
 
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -619,6 +620,7 @@ fn agent_timeflow_blocking(days: Option<u32>) -> Result<serde_json::Value, Strin
 fn main() {
     tauri::Builder::default()
         .setup(|app| {
+            update_server::start(app.handle());
             #[cfg(desktop)]
             app.handle()
                 .plugin(tauri_plugin_updater::Builder::new().build())?;

@@ -36,6 +36,35 @@ export const buildDiaryTitleFromTemplateDiary = (templateTitle: string, timestam
   return `${datePrefix} - ${normalizedTitle}`;
 };
 
+// 补写过去某天时用：模板里的「今日计划」对已经过完的那天没有意义，
+// 只留「流水账」那部分。模板被改过、没有这个标题时原样返回。
+export const removeTodayPlanSection = (content: string): string => {
+  if (typeof DOMParser === 'undefined') return content;
+
+  const doc = new DOMParser().parseFromString(`<main>${content}</main>`, 'text/html');
+  const main = doc.querySelector('main');
+  if (!main) return content;
+
+  const heading = Array.from(main.querySelectorAll('h1, h2, h3, h4, h5, h6'))
+    .find((node) => (node.textContent ?? '').replace(/\s+/g, '') === '今日计划');
+  if (!heading) return content;
+
+  const level = Number(heading.tagName.slice(1));
+  const toRemove: Element[] = [];
+  let node: Element | null = heading;
+  while (node) {
+    if (node !== heading) {
+      const match = /^H([1-6])$/.exec(node.tagName);
+      if (match && Number(match[1]) <= level) break;
+    }
+    toRemove.push(node);
+    node = node.nextElementSibling;
+  }
+
+  toRemove.forEach((item) => item.remove());
+  return main.innerHTML;
+};
+
 export const buildDiaryFromTemplateDiary = ({
   templateDiary,
   createdAt,

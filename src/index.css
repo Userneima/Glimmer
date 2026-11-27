@@ -100,6 +100,7 @@
   --glimmer-shadow: 0 12px 34px rgba(44, 70, 100, 0.09);
   --glimmer-shadow-soft: 0 6px 18px rgba(44, 70, 100, 0.07);
   --glimmer-danger-surface: rgba(254, 226, 226, 0.78);
+  --glimmer-task-dropped: #c2554d;
   --glimmer-code-bg: rgba(24, 35, 50, 0.06);
   --glimmer-empty-view-bg: linear-gradient(180deg, rgba(248, 251, 254, 0.88) 0%, rgba(234, 244, 250, 0.56) 100%);
   --glimmer-scrollbar: rgba(50, 66, 84, 0.22);
@@ -133,6 +134,7 @@
   --glimmer-shadow: 0 16px 42px rgba(0, 0, 0, 0.32);
   --glimmer-shadow-soft: 0 8px 22px rgba(0, 0, 0, 0.24);
   --glimmer-danger-surface: rgba(91, 30, 35, 0.62);
+  --glimmer-task-dropped: #cf6f67;
   --glimmer-code-bg: rgba(255, 255, 255, 0.08);
   --glimmer-empty-view-bg: linear-gradient(180deg, rgba(18, 27, 38, 0.92) 0%, rgba(13, 20, 29, 0.82) 100%);
   --glimmer-scrollbar: rgba(190, 205, 222, 0.24);
@@ -447,6 +449,60 @@ input, textarea, select {
   height: 16px;
   cursor: pointer;
   accent-color: var(--aurora-accent);
+}
+
+/* 任务勾选框：空框 → 打勾 → 打叉 → 空框。三种样子都由这一个按钮画出来，
+   系统 checkbox 只能表示两种状态，所以不用它。 */
+.ProseMirror ul[data-type="taskList"] li > .task-toggle {
+  margin: 0.2rem 0 0;
+  padding: 0;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  border: 1.5px solid color-mix(in srgb, var(--aurora-secondary) 45%, transparent);
+  background: transparent;
+  color: transparent;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease, color 0.15s ease;
+}
+
+.ProseMirror ul[data-type="taskList"] li > .task-toggle:hover {
+  border-color: var(--aurora-accent);
+}
+
+.ProseMirror ul[data-type="taskList"] li > .task-toggle:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--aurora-accent) 28%, transparent);
+}
+
+.ProseMirror ul[data-type="taskList"] li > .task-toggle svg {
+  display: none;
+  width: 10px;
+  height: 10px;
+}
+
+.ProseMirror ul[data-type="taskList"] li > .task-toggle.is-done {
+  border-color: var(--aurora-accent);
+  background: var(--aurora-accent);
+  color: #fff;
+}
+
+.ProseMirror ul[data-type="taskList"] li > .task-toggle.is-done .task-toggle-check {
+  display: block;
+}
+
+.ProseMirror ul[data-type="taskList"] li > .task-toggle.is-dropped {
+  border-color: var(--glimmer-task-dropped);
+  background: var(--glimmer-task-dropped);
+  color: #fff;
+}
+
+.ProseMirror ul[data-type="taskList"] li > .task-toggle.is-dropped .task-toggle-cross {
+  display: block;
 }
 
 .ProseMirror blockquote {

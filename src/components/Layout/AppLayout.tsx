@@ -20,7 +20,7 @@ import { DesktopUpdateNotice } from '../UI/DesktopUpdateNotice';
 import { BookOpen, Settings, Menu, X, ChevronLeft, ChevronRight, Upload, Download, Moon, Sun } from 'lucide-react';
 import { ToastHost } from '../UI/ToastHost';
 import { getDiaryWordCount } from '../../utils/text';
-import { diaryDay } from '../../utils/date';
+import { atNoon, diaryDay, isSameDay, startOfDay } from '../../utils/date';
 import { CloudSyncStatus } from '../UI/CloudSyncStatus';
 import { CloudLoginReminder } from '../UI/CloudLoginReminder';
 import { DesktopStoreWarning } from '../UI/DesktopStoreWarning';
@@ -224,14 +224,36 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ theme, onToggleTheme }) =>
     [currentDiaryId, updateDiary]
   );
 
-  const handleCreateDiary = () => {
-    const plan = planMonthFolder(folders, Date.now());
+  const handleCreateDiary = (day?: number) => {
+    const targetDay = atNoon(day ?? Date.now());
+
+    // 补写时这一天已经有日记就打开它，不再新建第二篇。正常新建（不传日期）不动这个规则。
+    if (day !== undefined) {
+      const existing = diaries.find((diary) => (
+        !isSystemDiary(diary) && isSameDay(diaryDay(diary).getTime(), targetDay)
+      ));
+      if (existing) {
+        handleSelectDiary(existing.id);
+        showToast(t('A diary already exists for that day. Opened it.'));
+        return;
+      }
+    }
+
+    const plan = planMonthFolder(folders, targetDay);
+    const options = day === undefined
+      ? undefined
+      : {
+          createdAt: targetDay,
+          // 补已经过完的日子时只留流水账；选的是今天就跟正常新建一样。
+          skipTodayPlan: targetDay < startOfDay(Date.now()),
+        };
+
     if (plan.kind === 'none') {
-      createDiary(selectedFolderId);
+      createDiary(selectedFolderId, options);
       return;
     }
     const folderId = plan.kind === 'existing' ? plan.folderId : createFolder(plan.name, plan.parentId).id;
-    createDiary(folderId);
+    createDiary(folderId, options);
     // 切到那个月份文件夹，刚建的日记就在中间列表里，不会像被藏起来一样。
     setSelectedFolderId(folderId);
   };

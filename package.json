@@ -11,6 +11,7 @@
     "preview": "vite preview",
     "desktop:dev": "tauri dev",
     "desktop:build": "bash scripts/build-desktop.sh",
+    "desktop:local-update": "node scripts/local-update.mjs",
     "desktop:manifest": "node scripts/generate-updater-manifest.mjs",
     "tauri:dev": "npm run desktop:dev",
     "tauri:build": "npm run desktop:build"

@@ -19,14 +19,14 @@
 - 桌面左侧栏：`src/components/Layout/DesktopLeftSidebar.tsx`
 - 日记列表：`src/components/Sidebar/DiaryList.tsx`
 - 文件夹：`src/components/Sidebar/FolderTree.tsx`
-- 待办：只存在于日记正文的勾选框里；跨日挪移见 `src/utils/diaryTaskCarryover.ts`
+- 待办：只存在于日记正文的勾选框里；勾选框的空/勾/叉三态在 `src/components/Editor/taskItemMark.ts`，跨日挪移见 `src/utils/diaryTaskCarryover.ts`
 - 编辑器：`src/components/Editor/Editor.tsx`、`src/components/Editor/EditorToolbar.tsx`
 - 日记上方的「长期在做」横条：`src/components/Editor/LongTermFocusStrip.tsx`，从长期任务文档读清单的逻辑在 `src/utils/longTermFocus.ts`
 - Claude 改文档的收件箱：核对规则 `src/utils/agentChanges.ts`，桌面端读取和执行 `src/hooks/useAgentInbox.ts`，文件读写 `src-tauri/src/agent_inbox.rs`，Claude 用的命令 `scripts/agent-change.mjs`
 - 本地存储：`src/utils/storage.ts`
 - 云同步：`src/utils/cloud.ts`、`src/utils/syncManager.ts`、`src/utils/syncQueue.ts`
 - 导入导出：`src/components/UI/ImportModal.tsx`、`src/components/UI/ExportModal.tsx`、`src/utils/export.ts`
-- 桌面/Tauri：`src-tauri/src/main.rs`
+- 桌面/Tauri：`src-tauri/src/main.rs`；本地开发更新见 `src-tauri/src/update_server.rs` 和 `scripts/local-update.mjs`，说明在 `docs/DESKTOP_UPDATES.md`
 
 ## 高上下文文件
 

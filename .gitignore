@@ -51,6 +51,9 @@ src-tauri/target/release/bundle/**/latest.json
 # 本地个人补充说明，不提交
 CLAUDE.local.md
 
+# 本机本地更新用的签名身份，不提交
+scripts/local-update.local.json
+
 # Agent 工作记忆，含本地路径与私有工作笔记
 .workbuddy/
 

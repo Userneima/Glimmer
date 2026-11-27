@@ -1,10 +1,17 @@
 import React, { useMemo, useState } from 'react';
-import { Plus, Search, Trash2, Calendar, Folder, Menu, FileText } from 'lucide-react';
+import { Plus, Search, Trash2, Calendar, CalendarPlus, Folder, Menu, FileText } from 'lucide-react';
 import { TEMPLATE_DIARY_ID } from '../../types';
 import type { Diary, Folder as DiaryFolder } from '../../types';
-import { formatDate, formatRelativeTime } from '../../utils/date';
+import {
+  diaryDay,
+  formatDate,
+  formatRelativeTime,
+  isSameDay,
+  parseDateInputValue,
+  toDateInputValue,
+} from '../../utils/date';
 import { getDiaryWordCount } from '../../utils/text';
-import { isLongTermMasterDiary } from '../../utils/diarySystem';
+import { isLongTermMasterDiary, isSystemDiary } from '../../utils/diarySystem';
 import { Modal } from '../UI/Modal';
 import { Button } from '../UI/Button';
 import { t } from '../../i18n';
@@ -28,7 +35,7 @@ interface DiaryListProps {
   diaries: Diary[];
   currentDiaryId: string | null;
   onSelectDiary: (id: string) => void;
-  onCreateDiary: () => void;
+  onCreateDiary: (day?: number) => void;
   onDeleteDiary: (id: string) => void;
   onMoveDiary: (diaryId: string, folderId: string | null) => void;
   searchQuery: string;
@@ -70,6 +77,34 @@ export const DiaryList: React.FC<DiaryListProps> = ({
   const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
   const [movingDiaryId, setMovingDiaryId] = useState<string | null>(null);
   const [targetFolderId, setTargetFolderId] = useState<string | null>(null);
+
+  // 补写：默认停在昨天，也可以选更早的一天。选中的那天已经有日记时按钮变成「打开」。
+  const [isBackfillOpen, setIsBackfillOpen] = useState(false);
+  const [backfillMax, setBackfillMax] = useState(() => toDateInputValue(Date.now()));
+  const [backfillDate, setBackfillDate] = useState(() => {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    return toDateInputValue(yesterday.getTime());
+  });
+  const diaryForDay = (timestamp: number) => diaries.find((diary) => (
+    !isSystemDiary(diary) && isSameDay(diaryDay(diary).getTime(), timestamp)
+  ));
+  const selectedTimestamp = parseDateInputValue(backfillDate);
+  const selectedDiary = selectedTimestamp === null ? undefined : diaryForDay(selectedTimestamp);
+
+  const openBackfill = () => {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    setBackfillDate(toDateInputValue(yesterday.getTime()));
+    setBackfillMax(toDateInputValue(Date.now()));
+    setIsBackfillOpen(true);
+  };
+
+  const openOrCreateForDay = (timestamp: number, existing?: Diary) => {
+    if (existing) onSelectDiary(existing.id);
+    else onCreateDiary(timestamp);
+    setIsBackfillOpen(false);
+  };
 
   const folderDescendantIds = useMemo(() => {
     const childrenByParent = new Map<string | null, DiaryFolder[]>();
@@ -240,15 +275,79 @@ export const DiaryList: React.FC<DiaryListProps> = ({
               {t('Showing diaries summary').replace('{visible}', String(visibleCount)).replace('{total}', String(totalCount))}
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="relative flex items-center gap-2">
             {/* 加号按钮 - 弥散光渐变强调色 */}
             <button
-              onClick={onCreateDiary}
+              onClick={() => onCreateDiary()}
               className="glimmer-accent-button p-2.5 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 active:scale-95"
               title={t('New Diary')}
             >
               <Plus size={18} strokeWidth={2} />
             </button>
+            {/* 补写：默认今天还是主按钮，这里专门给过去的日子留入口 */}
+            <button
+              type="button"
+              onClick={() => (isBackfillOpen ? setIsBackfillOpen(false) : openBackfill())}
+              className="p-2.5 rounded-xl border transition-colors duration-200"
+              style={{
+                borderColor: 'var(--glimmer-border)',
+                backgroundColor: 'var(--glimmer-surface-card)',
+                color: 'var(--aurora-secondary)',
+              }}
+              title={t('Backfill a diary')}
+              aria-label={t('Backfill a diary')}
+              aria-expanded={isBackfillOpen}
+            >
+              <CalendarPlus size={18} strokeWidth={1.75} />
+            </button>
+
+            {isBackfillOpen && (
+              <>
+                <div
+                  className="fixed inset-0 z-40"
+                  onClick={() => setIsBackfillOpen(false)}
+                />
+                <div
+                  className="absolute right-0 top-full z-50 mt-2 w-64 rounded-xl border p-3 shadow-lg"
+                  style={{
+                    borderColor: 'var(--glimmer-border)',
+                    backgroundColor: 'var(--glimmer-surface-strong)',
+                  }}
+                >
+                  <p className="text-sm font-semibold" style={{ color: 'var(--aurora-primary)' }}>
+                    {t('Backfill a diary')}
+                  </p>
+
+                  <label className="mt-3 block text-xs font-medium" style={{ color: 'var(--aurora-muted)' }}>
+                    {t('Pick a day')}
+                  </label>
+                  <input
+                    type="date"
+                    value={backfillDate}
+                    max={backfillMax}
+                    onChange={(event) => setBackfillDate(event.target.value)}
+                    className="glimmer-field mt-1 w-full rounded-lg px-2.5 py-2 text-sm focus:outline-none"
+                    style={{ color: 'var(--aurora-primary)' }}
+                  />
+
+                  <button
+                    type="button"
+                    disabled={selectedTimestamp === null}
+                    onClick={() => {
+                      if (selectedTimestamp === null) return;
+                      openOrCreateForDay(selectedTimestamp, selectedDiary);
+                    }}
+                    className="glimmer-accent-button mt-2 w-full rounded-lg px-3 py-2 text-sm font-medium shadow-sm transition-all duration-200 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {selectedDiary ? t("Open that day's diary") : t('Backfill this day')}
+                  </button>
+
+                  <p className="mt-2 text-[11px] leading-4" style={{ color: 'var(--aurora-muted)' }}>
+                    {t('Backfilled diaries only keep the log part, without the today plan.')}
+                  </p>
+                </div>
+              </>
+            )}
           </div>
         </div>
         {/* 搜索框 - 毛玻璃材质 */}
@@ -302,7 +401,7 @@ export const DiaryList: React.FC<DiaryListProps> = ({
             </p>
             {!searchQuery && (
               <button
-                onClick={onCreateDiary}
+                onClick={() => onCreateDiary()}
                 className="glimmer-accent-button mt-4 px-4 py-2 text-sm rounded-xl font-medium shadow-sm hover:shadow-md transition-all duration-200 active:scale-95"
               >
                 {t('Create first diary')}

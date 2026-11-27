@@ -78,6 +78,7 @@ const hasMeaningfulUncheckedTaskAncestor = (item: Element) => {
 
 const markTaskItemUnchecked = (item: Element) => {
   item.setAttribute('data-checked', 'false');
+  item.removeAttribute('data-state');
   const label = Array.from(item.children).find((child) => child.tagName.toLowerCase() === 'label');
   label?.querySelector('input[type="checkbox"]')?.removeAttribute('checked');
 };

@@ -67,7 +67,7 @@ export const isLikelyMarkdown = (value: string) => {
   const blockSignals = lines.filter((line) => (
     /^#{1,6}\s+\S/.test(line) ||
     /^>\s+\S/.test(line) ||
-    /^\s*[-*+]\s+\[[ xX]\]\s+\S/.test(line) ||
+    /^\s*[-*+]\s+\[[ xX-]\]\s+\S/.test(line) ||
     /^\s*[-*+]\s+\S/.test(line) ||
     /^\s*\d+[.)]\s+\S/.test(line) ||
     /^```/.test(line) ||
@@ -93,7 +93,7 @@ export const markdownToHtml = (markdown: string) => {
   let paragraph: string[] = [];
   // 列表按原样的缩进和顺序收集，最后一起排成嵌套结构。以前普通列表、编号列表、待办
   // 各收一堆，混在一起时会被按类型重新分组，缩进也被忽略，子项跑到父项前面。
-  type ListLine = { indent: number; kind: 'ul' | 'ol' | 'task'; checked: boolean; text: string };
+  type ListLine = { indent: number; kind: 'ul' | 'ol' | 'task'; checked: boolean; dropped: boolean; text: string };
   let listLines: ListLine[] = [];
   let quoteLines: string[] = [];
   let isInCodeBlock = false;
@@ -106,11 +106,14 @@ export const markdownToHtml = (markdown: string) => {
     paragraph = [];
   };
 
-  const renderItem = (line: ListLine, children: string) => (
-    line.kind === 'task'
-      ? `<li data-type="taskItem" data-checked="${line.checked ? 'true' : 'false'}"><label><input type="checkbox"${line.checked ? ' checked' : ''}><span></span></label><div><p>${parseInlineMarkdown(line.text)}</p>${children}</div></li>`
-      : `<li><p>${parseInlineMarkdown(line.text)}</p>${children}</li>`
-  );
+  const renderItem = (line: ListLine, children: string) => {
+    if (line.kind !== 'task') {
+      return `<li><p>${parseInlineMarkdown(line.text)}</p>${children}</li>`;
+    }
+    const closed = line.checked || line.dropped;
+    const state = line.dropped ? ' data-state="dropped"' : '';
+    return `<li data-type="taskItem" data-checked="${closed ? 'true' : 'false'}"${state}><label><input type="checkbox"${closed ? ' checked' : ''}><span></span></label><div><p>${parseInlineMarkdown(line.text)}</p>${children}</div></li>`;
+  };
   const openTag = (kind: ListLine['kind']) => (kind === 'ol' ? '<ol>' : kind === 'task' ? '<ul data-type="taskList">' : '<ul>');
   const closeTag = (kind: ListLine['kind']) => (kind === 'ol' ? '</ol>' : '</ul>');
 
@@ -223,12 +226,18 @@ export const markdownToHtml = (markdown: string) => {
       return;
     }
 
-    const taskMatch = line.match(/^\s*[-*+]\s+\[([ xX])\]\s+(.+)$/);
+    const taskMatch = line.match(/^\s*[-*+]\s+\[([ xX-])\]\s+(.+)$/);
     if (taskMatch) {
       flushParagraph();
       flushQuote();
       flushTable();
-      listLines.push({ indent: indentOf(line), kind: 'task', checked: taskMatch[1].toLowerCase() === 'x', text: taskMatch[2] });
+      listLines.push({
+        indent: indentOf(line),
+        kind: 'task',
+        checked: taskMatch[1].toLowerCase() === 'x',
+        dropped: taskMatch[1] === '-',
+        text: taskMatch[2],
+      });
       return;
     }
 
@@ -237,7 +246,7 @@ export const markdownToHtml = (markdown: string) => {
       flushParagraph();
       flushQuote();
       flushTable();
-      listLines.push({ indent: indentOf(line), kind: 'ul', checked: false, text: bulletMatch[1] });
+      listLines.push({ indent: indentOf(line), kind: 'ul', checked: false, dropped: false, text: bulletMatch[1] });
       return;
     }
 
@@ -246,7 +255,7 @@ export const markdownToHtml = (markdown: string) => {
       flushParagraph();
       flushQuote();
       flushTable();
-      listLines.push({ indent: indentOf(line), kind: 'ol', checked: false, text: orderedMatch[1] });
+      listLines.push({ indent: indentOf(line), kind: 'ol', checked: false, dropped: false, text: orderedMatch[1] });
       return;
     }
 

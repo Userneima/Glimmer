@@ -21,6 +21,7 @@ import { EditorToolbar } from './EditorToolbar';
 import { TextBubbleMenu } from './TextBubbleMenu';
 import { isLikelyMarkdown, isPlainTextHtml, markdownToHtml } from '../../utils/markdown';
 import { indentEditorSelection, outdentEditorSelection } from '../../utils/editorIndentation';
+import { createTaskItemNodeView } from './taskItemMark';
 
 const getClipboardImageFiles = (clipboardData: DataTransfer | null): File[] => {
   if (!clipboardData) return [];
@@ -178,7 +179,25 @@ export const Editor: React.FC<EditorProps> = ({
               renderHTML: (attributes) =>
                 attributes.taskId ? { 'data-task-id': attributes.taskId } : {},
             },
+            // 打叉只是「已完成」的另一种样子：checked 仍然是完成与否的唯一判断，
+            // 这里多记一个 dropped。拆行和新建的空行都不继承它。
+            markState: {
+              default: null,
+              keepOnSplit: false,
+              parseHTML: (element) => (
+                element.getAttribute('data-checked') === 'true'
+                && element.getAttribute('data-state') === 'dropped'
+                  ? 'dropped'
+                  : null
+              ),
+              renderHTML: (attributes) => (
+                attributes.markState === 'dropped' ? { 'data-state': 'dropped' } : {}
+              ),
+            },
           };
+        },
+        addNodeView() {
+          return createTaskItemNodeView;
         },
         addKeyboardShortcuts() {
           const inherited = this.parent?.() ?? {};
@@ -227,7 +246,7 @@ export const Editor: React.FC<EditorProps> = ({
                 return splitTask();
               }
 
-              const blank = item.type.createAndFill({ ...item.attrs, checked: false });
+              const blank = item.type.createAndFill({ ...item.attrs, checked: false, markState: null });
               if (!blank) {
                 return splitTask();
               }
