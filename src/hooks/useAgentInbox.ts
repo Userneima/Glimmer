@@ -11,11 +11,14 @@ import { isSupabaseConfigured } from '../utils/supabase';
 
 // 往他自己的日记里加东西前，先确认云端没有比本机更新的版本（比如他刚在手机上写过）。
 // 有、或查不了，这一轮就不加，等下次拉取把新版本带回来再说，免得拿旧版本盖掉他新写的字。
-const cloudHasNewer = async (diary: Diary) => {
-  const userId = getCurrentStorageUserId();
-  if (!isSupabaseConfigured || !userId) return false;
+// 「查不了」包括会话过期：那时存储还用着上次的账号，但没有登录会话，云端查询按权限规则
+// 只会返回 0 行，看起来像「云端没有更新的」，其实什么都没查到。
+const cloudHasNewer = async (diary: Diary, sessionUserId: string | null) => {
+  const storageUserId = getCurrentStorageUserId();
+  if (!isSupabaseConfigured || !storageUserId) return false; // 从没登录过的纯本机用户，没有别的设备
+  if (sessionUserId !== storageUserId) return true;
   try {
-    const remote = await cloud.fetchDiaryUpdatedAt(userId, diary.id);
+    const remote = await cloud.fetchDiaryUpdatedAt(sessionUserId, diary.id);
     return remote !== null && remote > (diary.updatedAt ?? diary.createdAt);
   } catch {
     return true;
@@ -47,11 +50,14 @@ export const useAgentInbox = (
   diaries: Diary[],
   openDiaryId: string | null,
   updateDiary: (id: string, updates: Partial<Diary>) => void,
+  sessionUserId: string | null,
 ) => {
   // 用 ref 拿最新值，定时器只建一次。
   const diariesRef = useRef(diaries);
   const openRef = useRef(openDiaryId);
   const updateRef = useRef(updateDiary);
+  const sessionRef = useRef(sessionUserId);
+  sessionRef.current = sessionUserId;
   diariesRef.current = diaries;
   openRef.current = openDiaryId;
   updateRef.current = updateDiary;
@@ -76,6 +82,10 @@ export const useAgentInbox = (
           if (change.kind === 'add_today_plan') {
             const now = new Date();
             const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+            // 只在 Glimmer 窗口露在外面时加：那时他人在这台电脑前，不会同时在手机上写同一篇；
+            // 窗口重新露出来时 App 也会先从云端拉一次。查云端到上传之间还有一两秒空当，
+            // 两台设备同一秒改同一篇的情况和平常手写一样，这里不另外处理。
+            if (document.visibilityState !== 'visible') continue;
             const planDecision = decideAgentPlan(change, diariesRef.current, openRef.current, today, Date.now());
             if (planDecision.kind === 'wait') continue; // 等他建好那天的日记或停笔，不弹提示，免得一早上反复打扰
             if (planDecision.kind === 'reject') {
@@ -83,9 +93,12 @@ export const useAgentInbox = (
               void writeLog({ changeId: change.id, day: change.day, summary: change.summary, result: 'rejected', reason: planDecision.reason });
               continue;
             }
-            if (await cloudHasNewer(diariesRef.current.find((diary) => diary.id === planDecision.diaryId)!)) continue;
-            // 查云端要等网络，期间他可能又写了字：用查完之后的最新版本来插。
-            const planTarget = diariesRef.current.find((diary) => diary.id === planDecision.diaryId);
+            const checked = diariesRef.current.find((diary) => diary.id === planDecision.diaryId);
+            if (!checked || (await cloudHasNewer(checked, sessionRef.current))) continue;
+            // 查云端要等网络，期间他可能又开始写字：用查完之后的最新状态再判断一次。
+            const recheck = decideAgentPlan(change, diariesRef.current, openRef.current, today, Date.now());
+            if (recheck.kind !== 'apply' || recheck.diaryId !== planDecision.diaryId) continue;
+            const planTarget = diariesRef.current.find((diary) => diary.id === recheck.diaryId);
             if (!planTarget) continue;
             const planPrevious = planTarget.content;
             const { html: planNext, added } = insertTodayPlan(planPrevious, change.items);

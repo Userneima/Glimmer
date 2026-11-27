@@ -52,7 +52,7 @@ type AppLayoutProps = {
 };
 
 export const AppLayout: React.FC<AppLayoutProps> = ({ theme, onToggleTheme }) => {
-  const { user, signOut, isConfigured, requestSignIn, localUserId } = useAuth();
+  const { user, signOut, isConfigured, requestSignIn, localUserId, autoSigningIn } = useAuth();
   // 本地数据的归属跟着存储层走：云端连不上时仍然是这个账号的数据。
   // 备份必须用它，否则未登录时会备份到空的匿名空间，把有效备份挤掉。
   const localDataUserId = user?.id ?? localUserId;
@@ -128,7 +128,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ theme, onToggleTheme }) =>
   const [, forceCarryoverRefresh] = useState(0);
   const { runMajorLocalBackup, scheduleMajorLocalBackup } = useLocalBackup(localDataUserId);
   // Claude 的改动单从这里进来，规则见 utils/agentChanges.ts。
-  useAgentInbox(allDiaries, currentDiaryId, updateDiary);
+  useAgentInbox(allDiaries, currentDiaryId, updateDiary, user?.id ?? null);
   
   // Long-term idea navigation
   const [showTrash, setShowTrash] = useState(false);
@@ -230,11 +230,13 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ theme, onToggleTheme }) =>
 
     // 补写时这一天已经有日记就打开它，不再新建第二篇。正常新建（不传日期）不动这个规则。
     if (day !== undefined) {
-      if (isInitialCloudPullPending()) {
+      // 自动重新登录还没完成时也算没取完：登录上之后才会去取云端。
+      if (isInitialCloudPullPending() || autoSigningIn) {
         showToast(t('Still loading diaries from the cloud. Try backfilling again in a few seconds.'));
         return;
       }
-      const existing = diaries.find((diary) => (
+      // 用没被搜索过滤的全部日记查，搜索框里有词时也不会漏掉那天的日记。
+      const existing = allDiaries.find((diary) => (
         !isSystemDiary(diary) && isSameDay(diaryDay(diary).getTime(), targetDay)
       ));
       if (existing) {

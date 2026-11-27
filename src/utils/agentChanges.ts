@@ -172,7 +172,7 @@ const plainText = (html: string) =>
     .toLowerCase();
 
 const HEADING = /<h([1-6])[^>]*>([\s\S]*?)<\/h\1>/g;
-const PARAGRAPH = /<p[^>]*>([\s\S]*?)<\/p>/g;
+const PARAGRAPH = /<p(?:\s[^>]*)?>([\s\S]*?)<\/p>/g; // 不能匹配到 <pre>、<param>
 
 // 把条目插到「今日计划」标题正下方；没有这个标题就在末尾补一个。标题里套了加粗、空格也认得出。
 // 正文里已经有一段文字和条目一样的（他自己写过、或上一次已经加过）就不再加；只比整段，

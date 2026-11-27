@@ -157,3 +157,8 @@ test('正文里只是提到了同样的字，不算已经有这条', () => {
   const content = '<p>今天不想跑步</p><h2>今日计划</h2><p></p>';
   assert.deepEqual(insertTodayPlan(content, ['跑步']).added, ['跑步']);
 });
+
+test('代码块不当成段落，后面那段照样认得出', () => {
+  const content = '<pre><code>x</code></pre><p>跑步</p><h2>今日计划</h2>';
+  assert.deepEqual(insertTodayPlan(content, ['跑步']).added, []);
+});
