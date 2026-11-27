@@ -107,6 +107,7 @@ const translations: Record<string, string> = {
   "Open that day's diary": '打开这一天的日记',
   'Backfilled diaries only keep the log part, without the today plan.': '补写只保留流水账，不插今日计划。',
   'A diary already exists for that day. Opened it.': '这一天已经有日记了，已打开。',
+  'Still loading diaries from the cloud. Try backfilling again in a few seconds.': '还在从云端取日记，过几秒再补写，免得建出重复的一篇。',
   'No diaries on this date': '该日期没有日记',
   'No tasks on this date': '该日期没有任务',
   'Create one': '创建一个',

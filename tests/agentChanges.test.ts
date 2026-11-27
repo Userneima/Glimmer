@@ -90,6 +90,7 @@ const plan = (overrides: Record<string, unknown> = {}) =>
     ...overrides,
   }));
 
+const NOW = new Date(2026, 10, 27, 12).getTime();
 const day27 = { id: 'd27', title: '20261127-周五', createdAt: new Date(2026, 10, 27, 9).getTime() };
 const day26 = { id: 'd26', title: '20261126-助教', createdAt: new Date(2026, 10, 26, 9).getTime() };
 
@@ -101,26 +102,29 @@ test('计划单格式：没有条目或日期不对就不认', () => {
 });
 
 test('那天的日记还没建：等，不拒绝', () => {
-  assert.equal(decideAgentPlan(plan() as never, [day26], null, '2026-11-27').kind, 'wait');
+  assert.equal(decideAgentPlan(plan() as never, [day26], null, '2026-11-27', NOW).kind, 'wait');
 });
 
 test('建好了且没开着：加到按标题日期认出的那一篇', () => {
-  assert.deepEqual(decideAgentPlan(plan() as never, [day26, day27], null, '2026-11-27'), { kind: 'apply', diaryId: 'd27' });
+  assert.deepEqual(decideAgentPlan(plan() as never, [day26, day27], null, '2026-11-27', NOW), { kind: 'apply', diaryId: 'd27' });
 });
 
 test('标题日期是 26 号、27 号凌晨才建的补写：不算 27 号', () => {
   const backfill = { id: 'b', title: '20261126-补写', createdAt: new Date(2026, 10, 27, 1).getTime() };
-  assert.equal(decideAgentPlan(plan() as never, [backfill], null, '2026-11-27').kind, 'wait');
+  assert.equal(decideAgentPlan(plan() as never, [backfill], null, '2026-11-27', NOW).kind, 'wait');
 });
 
 test('长期任务和模板不算那天的日记', () => {
   const longTermToday = { id: LONG_TERM, title: '长期任务', createdAt: new Date(2026, 10, 27, 9).getTime() };
-  assert.equal(decideAgentPlan(plan() as never, [longTermToday], null, '2026-11-27').kind, 'wait');
+  assert.equal(decideAgentPlan(plan() as never, [longTermToday], null, '2026-11-27', NOW).kind, 'wait');
 });
 
-test('那篇正开着：等；过了那天：作废', () => {
-  assert.equal(decideAgentPlan(plan() as never, [day27], 'd27', '2026-11-27').kind, 'wait');
-  assert.equal(decideAgentPlan(plan() as never, [day27], null, '2026-11-28').kind, 'reject');
+test('那篇开着：刚写过就等，停笔一分钟以上照样加；过了那天：作废', () => {
+  const justTyped = { ...day27, updatedAt: NOW - 10_000 };
+  const idle = { ...day27, updatedAt: NOW - 5 * 60_000 };
+  assert.equal(decideAgentPlan(plan() as never, [justTyped], 'd27', '2026-11-27', NOW).kind, 'wait');
+  assert.deepEqual(decideAgentPlan(plan() as never, [idle], 'd27', '2026-11-27', NOW), { kind: 'apply', diaryId: 'd27' });
+  assert.equal(decideAgentPlan(plan() as never, [day27], null, '2026-11-28', NOW).kind, 'reject');
 });
 
 test('插在「今日计划」标题正下方，他原有的条目留在后面', () => {
@@ -141,4 +145,15 @@ test('没有「今日计划」标题就在末尾补一节；尖括号转义', ()
   const { html } = insertTodayPlan('<p>只有正文</p>', ['看 <a> 标签']);
   assert.ok(html.startsWith('<p>只有正文</p><h2>今日计划</h2>'));
   assert.ok(html.includes('看 &lt;a&gt; 标签'));
+});
+
+test('标题里套了加粗、带空格也认得出，不在末尾多补一个标题', () => {
+  const { html } = insertTodayPlan('<h2><strong>今日&nbsp;计划</strong></h2><p></p>', ['约访谈']);
+  assert.equal(html.match(/今日/g)!.length, 1);
+  assert.ok(html.indexOf('约访谈') > html.indexOf('</h2>'));
+});
+
+test('正文里只是提到了同样的字，不算已经有这条', () => {
+  const content = '<p>今天不想跑步</p><h2>今日计划</h2><p></p>';
+  assert.deepEqual(insertTodayPlan(content, ['跑步']).added, ['跑步']);
 });

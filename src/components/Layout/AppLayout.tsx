@@ -76,6 +76,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ theme, onToggleTheme }) =>
     importDiaries,
     pullDiariesFromCloud,
     reloadDiariesFromStorage,
+    isInitialCloudPullPending,
   } = useDiaries();
 
   const { folders, createFolder, updateFolder, deleteFolder, importFolders } = useFolders();
@@ -229,6 +230,10 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ theme, onToggleTheme }) =>
 
     // 补写时这一天已经有日记就打开它，不再新建第二篇。正常新建（不传日期）不动这个规则。
     if (day !== undefined) {
+      if (isInitialCloudPullPending()) {
+        showToast(t('Still loading diaries from the cloud. Try backfilling again in a few seconds.'));
+        return;
+      }
       const existing = diaries.find((diary) => (
         !isSystemDiary(diary) && isSameDay(diaryDay(diary).getTime(), targetDay)
       ));

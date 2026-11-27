@@ -133,12 +133,17 @@ export type AgentPlanDecision =
   | { kind: 'wait'; reason: string }
   | { kind: 'reject'; reason: string };
 
-// today 是调用方的本地日期 YYYY-MM-DD。
+// 那篇正开着时也能加（今天的日记他常常一整天开着），走和「挪到这篇」同一条路：改存储、编辑器跟着刷新。
+// 只在他刚停笔不久时等一等，免得刷新打断正在打的字。
+export const PLAN_IDLE_MS = 60_000;
+
+// today 是调用方的本地日期 YYYY-MM-DD，now 是当前时间戳。
 export const decideAgentPlan = (
   change: AgentPlanChange,
-  diaries: Pick<Diary, 'id' | 'title' | 'createdAt' | 'isLongTermMaster' | 'isTemplateDiary'>[],
+  diaries: Pick<Diary, 'id' | 'title' | 'createdAt' | 'updatedAt' | 'isLongTermMaster' | 'isTemplateDiary'>[],
   openDiaryId: string | null,
   today: string,
+  now: number,
 ): AgentPlanDecision => {
   if (change.day < today) return { kind: 'reject', reason: '那一天已经过了' };
   // 同一天有两篇时取最早建的那篇，和他平时把那天当一篇看一致。
@@ -146,7 +151,9 @@ export const decideAgentPlan = (
     .filter((diary) => !isSystem(diary) && localDay(diaryDay(diary)) === change.day)
     .sort((a, b) => a.createdAt - b.createdAt)[0];
   if (!target) return { kind: 'wait', reason: '那天的日记还没建，建好后加进今日计划' };
-  if (openDiaryId === target.id) return { kind: 'wait', reason: '这篇正开着，切到别的日记后执行' };
+  if (openDiaryId === target.id && now - (target.updatedAt ?? target.createdAt) < PLAN_IDLE_MS) {
+    return { kind: 'wait', reason: '他刚在写这篇，停笔一分钟后再加' };
+  }
   return { kind: 'apply', diaryId: target.id };
 };
 
@@ -164,13 +171,15 @@ const plainText = (html: string) =>
     .replace(/\s+/g, '')
     .toLowerCase();
 
-const PLAN_HEADING = /<h([1-6])[^>]*>\s*今日计划\s*<\/h\1>/;
+const HEADING = /<h([1-6])[^>]*>([\s\S]*?)<\/h\1>/g;
+const PARAGRAPH = /<p[^>]*>([\s\S]*?)<\/p>/g;
 
-// 把条目插到「今日计划」标题正下方；没有这个标题就在末尾补一个。
-// 正文里已经有同样文字的条目不再加（他自己写过、或上一次已经加过）。
+// 把条目插到「今日计划」标题正下方；没有这个标题就在末尾补一个。标题里套了加粗、空格也认得出。
+// 正文里已经有一段文字和条目一样的（他自己写过、或上一次已经加过）就不再加；只比整段，
+// 不拿条目在全文里找子串，免得「跑步」因为正文有「今天不想跑步」被漏掉。
 export const insertTodayPlan = (content: string, items: string[]) => {
-  const existing = plainText(content);
-  const added = items.filter((item) => !existing.includes(plainText(escapeHtml(item))));
+  const existing = new Set(Array.from(content.matchAll(PARAGRAPH), (m) => plainText(m[1])));
+  const added = items.filter((item) => !existing.has(plainText(escapeHtml(item))));
   if (added.length === 0) return { html: content, added };
   const list =
     '<ul data-type="taskList">' +
@@ -181,9 +190,9 @@ export const insertTodayPlan = (content: string, items: string[]) => {
       )
       .join('') +
     '</ul>';
-  const match = PLAN_HEADING.exec(content);
-  if (!match) return { html: `${content}<h2>今日计划</h2>${list}`, added };
-  const at = match.index + match[0].length;
+  const heading = Array.from(content.matchAll(HEADING)).find((m) => plainText(m[2]) === '今日计划');
+  if (!heading || heading.index === undefined) return { html: `${content}<h2>今日计划</h2>${list}`, added };
+  const at = heading.index + heading[0].length;
   return { html: content.slice(0, at) + list + content.slice(at), added };
 };
 

@@ -5,6 +5,22 @@ import { canUndoAgentChange, decideAgentChange, decideAgentPlan, hashContent, in
 import { isTauriRuntime } from '../utils/desktopStore';
 import { markdownToHtml } from '../utils/markdown';
 import { showToast } from '../utils/toast';
+import { cloud } from '../utils/cloud';
+import { getCurrentStorageUserId } from '../utils/storage';
+import { isSupabaseConfigured } from '../utils/supabase';
+
+// 往他自己的日记里加东西前，先确认云端没有比本机更新的版本（比如他刚在手机上写过）。
+// 有、或查不了，这一轮就不加，等下次拉取把新版本带回来再说，免得拿旧版本盖掉他新写的字。
+const cloudHasNewer = async (diary: Diary) => {
+  const userId = getCurrentStorageUserId();
+  if (!isSupabaseConfigured || !userId) return false;
+  try {
+    const remote = await cloud.fetchDiaryUpdatedAt(userId, diary.id);
+    return remote !== null && remote > (diary.updatedAt ?? diary.createdAt);
+  } catch {
+    return true;
+  }
+};
 
 // 桌面版每隔几秒看一眼 Claude 的改动单（规则见 utils/agentChanges.ts）。网页版没有收件箱，什么都不做。
 const POLL_MS = 4000;
@@ -60,14 +76,17 @@ export const useAgentInbox = (
           if (change.kind === 'add_today_plan') {
             const now = new Date();
             const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-            const planDecision = decideAgentPlan(change, diariesRef.current, openRef.current, today);
-            if (planDecision.kind === 'wait') continue; // 等他建好那天的日记或切走，不弹提示，免得一早上反复打扰
+            const planDecision = decideAgentPlan(change, diariesRef.current, openRef.current, today, Date.now());
+            if (planDecision.kind === 'wait') continue; // 等他建好那天的日记或停笔，不弹提示，免得一早上反复打扰
             if (planDecision.kind === 'reject') {
               await finish(file.fileName, file.content, { result: 'rejected', reason: planDecision.reason });
               void writeLog({ changeId: change.id, day: change.day, summary: change.summary, result: 'rejected', reason: planDecision.reason });
               continue;
             }
-            const planTarget = diariesRef.current.find((diary) => diary.id === planDecision.diaryId)!;
+            if (await cloudHasNewer(diariesRef.current.find((diary) => diary.id === planDecision.diaryId)!)) continue;
+            // 查云端要等网络，期间他可能又写了字：用查完之后的最新版本来插。
+            const planTarget = diariesRef.current.find((diary) => diary.id === planDecision.diaryId);
+            if (!planTarget) continue;
             const planPrevious = planTarget.content;
             const { html: planNext, added } = insertTodayPlan(planPrevious, change.items);
             if (added.length === 0) {
@@ -92,7 +111,8 @@ export const useAgentInbox = (
                 showToast(`已撤销 Claude 加进《${planTitle}》的计划`, 'success');
               },
             });
-            continue;
+            // 列表要等下一次渲染才是新的；同一轮再处理别的单子可能拿旧正文盖掉刚加的，剩下的 4 秒后再说。
+            break;
           }
 
           const target = diariesRef.current.find((diary) => diary.id === change.diaryId);

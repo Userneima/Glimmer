@@ -61,6 +61,9 @@ export const useDiaries = () => {
   const diarySyncInFlightRef = useRef<Set<string>>(new Set());
   const diarySyncDirtyRef = useRef<Record<string, boolean>>({});
   const lastCloudPullAtRef = useRef(0);
+  // 打开 App 后第一次从云端取日记还没回来。补写要按日期查「这天有没有日记」，
+  // 这时只看本机可能漏掉只在云端的那篇、建出第二篇，所以先等它回来（取失败也算回来了）。
+  const initialPullPendingRef = useRef(false);
   const [diaries, setDiaries] = useState<Diary[]>(() => storage.getDiaries());
   const [currentDiaryId, setCurrentDiaryId] = useState<string | null>(() => {
     const loadedDiaries = storage.getDiaries();
@@ -225,7 +228,13 @@ export const useDiaries = () => {
       if (!userId) return;
 
       try {
-        const remote = await cloud.fetchDiaries(userId);
+        initialPullPendingRef.current = true;
+        let remote: Diary[];
+        try {
+          remote = await cloud.fetchDiaries(userId);
+        } finally {
+          initialPullPendingRef.current = false;
+        }
         lastCloudPullAtRef.current = Date.now();
         if (!active) return;
 
@@ -653,7 +662,10 @@ export const useDiaries = () => {
     setDiaries(storage.getDiaries());
   }, []);
 
+  const isInitialCloudPullPending = useCallback(() => initialPullPendingRef.current, []);
+
   return {
+    isInitialCloudPullPending,
     diaries: filteredDiaries,
     allDiaries: diaries,
     trashedDiaries,
